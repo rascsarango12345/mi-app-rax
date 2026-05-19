@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/auth";
 import { Colors, LOGO_URL, Radius, Spacing } from "@/src/theme";
 import { apiPost } from "@/src/api";
+import { useT } from "@/src/i18n";
 import { useState } from "react";
 
 const PLAN_COLORS: Record<string, string> = { free: "#666", premium: Colors.electricBlue, pro: Colors.neonGreen };
@@ -12,11 +13,12 @@ const PLAN_COLORS: Record<string, string> = { free: "#666", premium: Colors.elec
 export default function Profile() {
   const router = useRouter();
   const { user, logout, refresh } = useAuth();
+  const { t, lang } = useT();
   const [cancelling, setCancelling] = useState(false);
   if (!user) return null;
 
   const confirmCancel = async () => {
-    const msg = "¿Cancelar tu suscripción? Te devolveremos el dinero de inmediato y pasarás al plan Gratis.";
+    const msg = t("cancel_confirm");
     const doCancel = async () => {
       setCancelling(true);
       try {
@@ -38,9 +40,9 @@ export default function Profile() {
     if (Platform.OS === "web") {
       if (window.confirm(msg)) await doCancel();
     } else {
-      Alert.alert("Cancelar suscripción", msg, [
-        { text: "No", style: "cancel" },
-        { text: "Sí, cancelar y reembolsar", style: "destructive", onPress: doCancel },
+      Alert.alert(t("cancel_sub"), msg, [
+        { text: t("no"), style: "cancel" },
+        { text: t("yes"), style: "destructive", onPress: doCancel },
       ]);
     }
   };
@@ -63,7 +65,7 @@ export default function Profile() {
           </View>
           {user.is_guest && (
             <Text style={{ color: Colors.warning, fontSize: 12, marginTop: 6 }}>
-              ⚠️ Cuenta invitado · crea una cuenta para guardar tu progreso
+              ⚠️ {t("guest_warning")}
             </Text>
           )}
         </View>
@@ -71,23 +73,23 @@ export default function Profile() {
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
             <Text style={styles.statValue}>{user.messages_used}</Text>
-            <Text style={styles.statLabel}>Mensajes</Text>
+            <Text style={styles.statLabel}>{t("messages_label")}</Text>
           </View>
           <View style={styles.statBox}>
             <Text style={styles.statValue}>{user.images_used}</Text>
-            <Text style={styles.statLabel}>Imágenes</Text>
+            <Text style={styles.statLabel}>{t("images_label")}</Text>
           </View>
         </View>
 
         <TouchableOpacity testID="btn-settings" style={styles.row} onPress={() => router.push("/settings")}>
           <Ionicons name="settings-outline" size={20} color={Colors.electricBlue} />
-          <Text style={styles.rowText}>Configuración (nombre, contraseña, emoji)</Text>
+          <Text style={styles.rowText}>{t("settings_sub")}</Text>
           <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
         </TouchableOpacity>
 
         <TouchableOpacity testID="btn-premium" style={styles.row} onPress={() => router.push("/premium")}>
           <Ionicons name="diamond-outline" size={20} color={Colors.neonGreen} />
-          <Text style={styles.rowText}>Mejora a Premium / Pro</Text>
+          <Text style={styles.rowText}>{t("upgrade_plan")}</Text>
           <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
         </TouchableOpacity>
 
@@ -100,7 +102,7 @@ export default function Profile() {
           >
             <Ionicons name="close-circle-outline" size={20} color={Colors.warning} />
             <Text style={[styles.rowText, { color: Colors.warning }]}>
-              {cancelling ? "Procesando..." : "Cancelar suscripción · Reembolso instantáneo"}
+              {cancelling ? t("cancel_processing") : t("cancel_sub")}
             </Text>
             <View style={{ width: 20 }} />
           </TouchableOpacity>
@@ -108,14 +110,14 @@ export default function Profile() {
 
         <TouchableOpacity testID="btn-support" style={styles.row} onPress={() => router.push("/support")}>
           <Ionicons name="headset-outline" size={20} color={Colors.electricBlue} />
-          <Text style={styles.rowText}>Soporte técnico</Text>
+          <Text style={styles.rowText}>{t("support")}</Text>
           <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
         </TouchableOpacity>
 
         {user.is_admin && (
           <TouchableOpacity testID="btn-admin" style={styles.row} onPress={() => router.push("/admin")}>
             <Ionicons name="shield-checkmark-outline" size={20} color={Colors.electricBlue} />
-            <Text style={styles.rowText}>Panel Manager (RASC)</Text>
+            <Text style={styles.rowText}>{t("admin_panel")}</Text>
             <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
           </TouchableOpacity>
         )}
@@ -125,7 +127,7 @@ export default function Profile() {
           onPress={() => router.push("/terms")}
         >
           <Ionicons name="document-text-outline" size={20} color={Colors.textSecondary} />
-          <Text style={styles.rowText}>Términos y Privacidad</Text>
+          <Text style={styles.rowText}>{t("terms_privacy")}</Text>
           <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
         </TouchableOpacity>
 
@@ -138,11 +140,11 @@ export default function Profile() {
           }}
         >
           <Ionicons name="log-out-outline" size={20} color={Colors.error} />
-          <Text style={[styles.rowText, { color: Colors.error }]}>Cerrar sesión</Text>
+          <Text style={[styles.rowText, { color: Colors.error }]}>{t("logout")}</Text>
           <View style={{ width: 20 }} />
         </TouchableOpacity>
 
-        <Text style={styles.footer}>RAX AI v1.1 · Powered by RASC · {new Date().toLocaleDateString("es")}</Text>
+        <Text style={styles.footer}>RAX AI v1.1 · Powered by RASC · {new Date().toLocaleDateString(lang === "es" ? "es" : lang === "zh" ? "zh-CN" : lang === "hi" ? "hi-IN" : lang === "ru" ? "ru-RU" : "en-US")}</Text>
       </ScrollView>
     </SafeAreaView>
   );

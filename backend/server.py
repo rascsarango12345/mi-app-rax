@@ -732,7 +732,14 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
 
     # Build LlmChat with timezone-aware system prompt
     user_tz = (body.user_tz or "UTC").strip()
-    system_prompt = build_system_prompt(user_tz=user_tz, locale=body.language or "es")
+    # Prefer explicit `locale` if provided (from i18n), fallback to `language`
+    user_lang_raw = body.locale or body.language or "es"
+    user_lang = user_lang_raw.lower().split("-")[0]
+    system_prompt = build_system_prompt(user_tz=user_tz, locale=user_lang)
+    # Add language directive
+    lang_names = {"es": "Spanish", "en": "English", "hi": "Hindi", "zh": "Chinese", "ru": "Russian"}
+    if user_lang in lang_names:
+        system_prompt += f"\n\nIMPORTANT: Respond ONLY in {lang_names[user_lang]}. The user prefers {lang_names[user_lang]}."
 
     # Web search fallback for real-time info
     extra_context = ""

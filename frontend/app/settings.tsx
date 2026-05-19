@@ -6,12 +6,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { Colors, Radius, Spacing } from "@/src/theme";
 import { useAuth } from "@/src/auth";
 import { apiPatch, apiPost } from "@/src/api";
+import { useT, LANGUAGES, Lang } from "@/src/i18n";
 
 const EMOJIS = ["🤖","👨","👩","🦸","🧑‍💻","🦄","🐱","🐶","🦊","🐉","⚡","🔥","🌟","💎","🎮","🎨","🚀","🌈","🎯","👑"];
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, refresh } = useAuth();
+  const { lang, setLang, t } = useT();
   const [name, setName] = useState(user?.name || "");
   const [emoji, setEmoji] = useState((user as any)?.avatar_emoji || "🤖");
   const [savingProfile, setSavingProfile] = useState(false);
@@ -29,30 +31,24 @@ export default function SettingsScreen() {
     try {
       await apiPatch("/users/me", { name: name.trim(), avatar_emoji: emoji });
       await refresh();
-      showMsg("✅ Perfil actualizado");
+      showMsg("✅ " + t("saved_profile"));
     } catch (e: any) {
-      showMsg(e?.message || "Error");
+      showMsg(e?.message || t("error"));
     } finally {
       setSavingProfile(false);
     }
   };
 
   const changePassword = async () => {
-    if (newPwd !== confirmPwd) {
-      showMsg("Las contraseñas nuevas no coinciden");
-      return;
-    }
-    if (newPwd.length < 6) {
-      showMsg("La contraseña debe tener al menos 6 caracteres");
-      return;
-    }
+    if (newPwd !== confirmPwd) { showMsg(t("pwd_mismatch")); return; }
+    if (newPwd.length < 6) { showMsg(t("pwd_short")); return; }
     setChangingPwd(true);
     try {
       await apiPost("/users/me/password", { current_password: currentPwd, new_password: newPwd });
       setCurrentPwd(""); setNewPwd(""); setConfirmPwd("");
-      showMsg("✅ Contraseña cambiada");
+      showMsg("✅ " + t("pwd_changed"));
     } catch (e: any) {
-      showMsg(e?.message || "Error");
+      showMsg(e?.message || t("error"));
     } finally {
       setChangingPwd(false);
     }
@@ -64,16 +60,34 @@ export default function SettingsScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={26} color={Colors.electricBlue} />
         </TouchableOpacity>
-        <Text style={styles.title}>Configuración</Text>
+        <Text style={styles.title}>{t("settings")}</Text>
         <View style={{ width: 26 }} />
       </View>
 
       <ScrollView contentContainerStyle={{ padding: Spacing.md, gap: Spacing.lg }}>
+        {/* Language */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🌐 {t("choose_language")}</Text>
+          <View style={styles.langGrid}>
+            {LANGUAGES.map((L) => (
+              <TouchableOpacity
+                key={L.code}
+                testID={`lang-${L.code}`}
+                style={[styles.langBtn, lang === L.code && styles.langBtnActive]}
+                onPress={() => setLang(L.code as Lang)}
+              >
+                <Text style={styles.langFlag}>{L.flag}</Text>
+                <Text style={[styles.langName, lang === L.code && { color: "#000", fontWeight: "800" }]}>{L.native}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         {/* Profile */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Perfil</Text>
+          <Text style={styles.sectionTitle}>👤 {t("profile_section")}</Text>
 
-          <Text style={styles.label}>Tu emoji</Text>
+          <Text style={styles.label}>{t("your_emoji")}</Text>
           <View style={styles.emojiGrid}>
             {EMOJIS.map((e) => (
               <TouchableOpacity
@@ -87,29 +101,29 @@ export default function SettingsScreen() {
             ))}
           </View>
 
-          <Text style={styles.label}>Tu nombre</Text>
+          <Text style={styles.label}>{t("your_name")}</Text>
           <TextInput
             testID="input-name"
             style={styles.input}
             value={name}
             onChangeText={setName}
-            placeholder="Tu nombre"
+            placeholder={t("your_name")}
             placeholderTextColor={Colors.textMuted}
           />
 
           <TouchableOpacity testID="btn-save-profile" style={styles.cta} onPress={saveProfile} disabled={savingProfile}>
-            {savingProfile ? <ActivityIndicator color="#000" /> : <Text style={styles.ctaText}>Guardar perfil</Text>}
+            {savingProfile ? <ActivityIndicator color="#000" /> : <Text style={styles.ctaText}>{t("save_profile")}</Text>}
           </TouchableOpacity>
         </View>
 
         {/* Password */}
         {!user.is_guest && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Cambiar contraseña</Text>
+            <Text style={styles.sectionTitle}>🔒 {t("change_password")}</Text>
             <TextInput
               testID="input-current-pwd"
               style={styles.input}
-              placeholder="Contraseña actual"
+              placeholder={t("current_password")}
               placeholderTextColor={Colors.textMuted}
               secureTextEntry
               value={currentPwd}
@@ -118,7 +132,7 @@ export default function SettingsScreen() {
             <TextInput
               testID="input-new-pwd"
               style={styles.input}
-              placeholder="Nueva contraseña (mínimo 6 caracteres)"
+              placeholder={t("new_password")}
               placeholderTextColor={Colors.textMuted}
               secureTextEntry
               value={newPwd}
@@ -127,21 +141,21 @@ export default function SettingsScreen() {
             <TextInput
               testID="input-confirm-pwd"
               style={styles.input}
-              placeholder="Confirmar nueva contraseña"
+              placeholder={t("confirm_new_password")}
               placeholderTextColor={Colors.textMuted}
               secureTextEntry
               value={confirmPwd}
               onChangeText={setConfirmPwd}
             />
             <TouchableOpacity testID="btn-change-pwd" style={styles.cta} onPress={changePassword} disabled={changingPwd}>
-              {changingPwd ? <ActivityIndicator color="#000" /> : <Text style={styles.ctaText}>Cambiar contraseña</Text>}
+              {changingPwd ? <ActivityIndicator color="#000" /> : <Text style={styles.ctaText}>{t("change_password")}</Text>}
             </TouchableOpacity>
           </View>
         )}
 
         <TouchableOpacity testID="btn-terms" style={styles.row} onPress={() => router.push("/terms")}>
           <Ionicons name="document-text-outline" size={20} color={Colors.electricBlue} />
-          <Text style={styles.rowText}>Términos y Política de Privacidad</Text>
+          <Text style={styles.rowText}>{t("terms_privacy")}</Text>
           <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
         </TouchableOpacity>
       </ScrollView>
@@ -163,6 +177,11 @@ const styles = StyleSheet.create({
   emojiBox: { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: Colors.surfaceElevated, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: Colors.border },
   emojiBoxActive: { borderColor: Colors.electricBlue, backgroundColor: "rgba(0,229,255,0.15)" },
   emoji: { fontSize: 22 },
+  langGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  langBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.pill, backgroundColor: Colors.surfaceElevated, borderWidth: 1, borderColor: Colors.border },
+  langBtnActive: { backgroundColor: Colors.electricBlue, borderColor: Colors.electricBlue },
+  langFlag: { fontSize: 20 },
+  langName: { color: Colors.textPrimary, fontWeight: "600", fontSize: 14 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, padding: Spacing.md, backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border },
   rowText: { color: Colors.textPrimary, flex: 1, fontSize: 15 },
 });

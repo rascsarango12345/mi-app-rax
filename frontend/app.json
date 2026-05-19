@@ -36,7 +36,8 @@
           "photosPermission": "Permite seleccionar imágenes para analizar con RAX AI.",
           "cameraPermission": "Permite capturar fotos para analizar con RAX AI."
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "ios": {
       "supportsTablet": true,
@@ -52,7 +53,11 @@
         "backgroundColor": "#000"
       },
       "edgeToEdgeEnabled": true,
-      "permissions": ["RECORD_AUDIO", "READ_MEDIA_IMAGES", "CAMERA"]
+      "permissions": [
+        "RECORD_AUDIO",
+        "READ_MEDIA_IMAGES",
+        "CAMERA"
+      ]
     },
     "experiments": {
       "typedRoutes": true

@@ -3,11 +3,13 @@ import { useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/src/theme";
 import { useAuth } from "@/src/auth";
+import { useT } from "@/src/i18n";
 import { View, ActivityIndicator } from "react-native";
 
 export default function TabsLayout() {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const { t } = useT();
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -40,42 +42,42 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="chat"
         options={{
-          title: "Chat",
+          title: t("tab_chat"),
           tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="image"
         options={{
-          title: "Imagen",
+          title: t("tab_image"),
           tabBarIcon: ({ color, size }) => <Ionicons name="image-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="voice"
         options={{
-          title: "Voz",
+          title: t("tab_voice"),
           tabBarIcon: ({ color, size }) => <Ionicons name="mic-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="creator"
         options={{
-          title: "Creador",
+          title: t("tab_creator"),
           tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="game"
         options={{
-          title: "Juego",
+          title: t("tab_game"),
           tabBarIcon: ({ color, size }) => <Ionicons name="game-controller-outline" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Perfil",
+          title: t("tab_profile"),
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" color={color} size={size} />,
         }}
       />

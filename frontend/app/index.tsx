@@ -13,10 +13,12 @@ import Animated, {
 } from "react-native-reanimated";
 import { Colors, LOGO_URL } from "@/src/theme";
 import { useAuth } from "@/src/auth";
+import { useT } from "@/src/i18n";
 
 export default function Splash() {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const { t } = useT();
   const scale = useSharedValue(0.6);
   const opacity = useSharedValue(0);
   const taglineOpacity = useSharedValue(0);
@@ -69,7 +71,7 @@ export default function Splash() {
       </Animated.View>
 
       <Animated.View style={[styles.taglineWrap, taglineStyle]}>
-        <Text style={styles.poweredBy}>POWERED BY</Text>
+        <Text style={styles.poweredBy}>{t("powered_by")}</Text>
         <Text style={styles.rasc}>R · A · S · C</Text>
         <Text style={styles.fullName}>SARANGO CABRERA</Text>
       </Animated.View>

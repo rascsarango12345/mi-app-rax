@@ -17,12 +17,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors, Radius, Spacing } from "@/src/theme";
 import { apiGet, apiPost } from "@/src/api";
+import { useT } from "@/src/i18n";
 
 type Msg = { message_id: string; role: "user" | "assistant"; content: string; created_at: string; has_image?: boolean; image_preview?: string };
 
 export default function ChatThread() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t, lang } = useT();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -82,8 +84,7 @@ export default function ChatThread() {
     setSending(true);
     try {
       const user_tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-      const locale = (typeof navigator !== "undefined" && navigator.language) || "es";
-      const r = await apiPost("/chat/send", { conversation_id: id, text: prompt, user_tz, locale, image_base64: imgB64 || undefined });
+      const r = await apiPost("/chat/send", { conversation_id: id, text: prompt, user_tz, language: lang, locale: lang, image_base64: imgB64 || undefined });
       setMessages((m) => [...m, r.message]);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e: any) {
@@ -143,7 +144,7 @@ export default function ChatThread() {
             )}
             ListEmptyComponent={
               <View style={{ padding: 40, alignItems: "center" }}>
-                <Text style={{ color: Colors.textSecondary }}>Escribe tu primer mensaje 👇</Text>
+                <Text style={{ color: Colors.textSecondary }}>{t("type_message")} 👇</Text>
               </View>
             }
           />
@@ -172,7 +173,7 @@ export default function ChatThread() {
             <TextInput
               testID="chat-input"
               style={styles.input}
-              placeholder={pendingImage ? "Describe lo que quieres saber..." : "Escribe un mensaje..."}
+              placeholder={pendingImage ? t("type_message") : t("type_message")}
               placeholderTextColor={Colors.textMuted}
               value={text}
               onChangeText={setText}

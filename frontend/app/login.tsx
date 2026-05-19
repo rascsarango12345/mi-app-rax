@@ -19,10 +19,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/auth";
 import { Colors, LOGO_URL, Radius, Spacing } from "@/src/theme";
+import { useT, LANGUAGES, Lang } from "@/src/i18n";
 
 export default function LoginScreen() {
   const router = useRouter();
   const { login, register, guest, loginWithGoogleSession, user } = useAuth();
+  const { lang, setLang, t } = useT();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -60,7 +62,7 @@ export default function LoginScreen() {
 
   const submit = async () => {
     if (!email || !password) {
-      showError("Email y contraseña son obligatorios");
+      showError(t("email_pwd_required"));
       return;
     }
     setLoading(true);
@@ -69,7 +71,7 @@ export default function LoginScreen() {
       else await register(email, password, name);
       router.replace("/(tabs)/chat");
     } catch (e: any) {
-      showError(e?.message || "Error de autenticación");
+      showError(e?.message || t("auth_error"));
     } finally {
       setLoading(false);
     }
@@ -122,9 +124,23 @@ export default function LoginScreen() {
         style={StyleSheet.absoluteFill}
       />
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {/* Language quick picker */}
+        <View style={styles.langRow}>
+          {LANGUAGES.map((L) => (
+            <TouchableOpacity
+              key={L.code}
+              testID={`login-lang-${L.code}`}
+              style={[styles.langPill, lang === L.code && styles.langPillActive]}
+              onPress={() => setLang(L.code as Lang)}
+            >
+              <Text style={styles.langPillFlag}>{L.flag}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <View style={styles.header}>
           <Image source={{ uri: LOGO_URL }} style={styles.logo} resizeMode="contain" />
-          <Text style={styles.tag}>La Inteligencia que Piensa Contigo</Text>
+          <Text style={styles.tag}>{t("app_tagline")}</Text>
         </View>
 
         <View style={styles.card}>
@@ -134,14 +150,14 @@ export default function LoginScreen() {
               style={[styles.tab, mode === "login" && styles.tabActive]}
               onPress={() => setMode("login")}
             >
-              <Text style={[styles.tabText, mode === "login" && styles.tabTextActive]}>Iniciar sesión</Text>
+              <Text style={[styles.tabText, mode === "login" && styles.tabTextActive]}>{t("sign_in")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               testID="tab-register"
               style={[styles.tab, mode === "register" && styles.tabActive]}
               onPress={() => setMode("register")}
             >
-              <Text style={[styles.tabText, mode === "register" && styles.tabTextActive]}>Crear cuenta</Text>
+              <Text style={[styles.tabText, mode === "register" && styles.tabTextActive]}>{t("create_account")}</Text>
             </TouchableOpacity>
           </View>
 
@@ -149,7 +165,7 @@ export default function LoginScreen() {
             <TextInput
               testID="input-name"
               style={styles.input}
-              placeholder="Tu nombre"
+              placeholder={t("your_name")}
               placeholderTextColor={Colors.textMuted}
               value={name}
               onChangeText={setName}
@@ -159,7 +175,7 @@ export default function LoginScreen() {
           <TextInput
             testID="input-email"
             style={styles.input}
-            placeholder="Email"
+            placeholder={t("email")}
             placeholderTextColor={Colors.textMuted}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -169,7 +185,7 @@ export default function LoginScreen() {
           <TextInput
             testID="input-password"
             style={styles.input}
-            placeholder="Contraseña"
+            placeholder={t("password")}
             placeholderTextColor={Colors.textMuted}
             secureTextEntry
             value={password}
@@ -180,13 +196,13 @@ export default function LoginScreen() {
             {loading ? (
               <ActivityIndicator color="#000" />
             ) : (
-              <Text style={styles.primaryBtnText}>{mode === "login" ? "Entrar" : "Crear cuenta"}</Text>
+              <Text style={styles.primaryBtnText}>{mode === "login" ? t("enter") : t("create_account")}</Text>
             )}
           </TouchableOpacity>
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>o continúa con</Text>
+            <Text style={styles.dividerText}>{t("continue_with")}</Text>
             <View style={styles.dividerLine} />
           </View>
 
@@ -197,12 +213,10 @@ export default function LoginScreen() {
 
           <TouchableOpacity testID="btn-guest" style={styles.guestBtn} onPress={onGuest} disabled={loading}>
             <Ionicons name="person-outline" size={18} color={Colors.electricBlue} />
-            <Text style={styles.guestText}>Continuar como invitado</Text>
+            <Text style={styles.guestText}>{t("continue_guest")}</Text>
           </TouchableOpacity>
 
-          <Text style={styles.terms}>
-            Al continuar aceptas los Términos y la Política de Privacidad de RAX AI.
-          </Text>
+          <Text style={styles.terms}>{t("terms_accept")}</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -219,6 +233,10 @@ function extractFromFragment(url: string, key: string): string | null {
 
 const styles = StyleSheet.create({
   scroll: { flexGrow: 1, padding: Spacing.lg, justifyContent: "center" },
+  langRow: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: 6, marginBottom: 8 },
+  langPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: Colors.surfaceElevated, borderWidth: 1, borderColor: Colors.border },
+  langPillActive: { backgroundColor: "rgba(0,229,255,0.18)", borderColor: Colors.electricBlue },
+  langPillFlag: { fontSize: 18 },
   header: { alignItems: "center", marginBottom: Spacing.lg },
   logo: { width: 200, height: 200 },
   tag: { color: Colors.textSecondary, fontSize: 13, letterSpacing: 1, marginTop: -10 },

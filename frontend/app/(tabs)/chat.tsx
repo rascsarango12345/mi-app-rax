@@ -16,11 +16,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors, LOGO_URL, Radius, Spacing } from "@/src/theme";
 import { apiGet, apiPost, apiDelete } from "@/src/api";
+import { useT } from "@/src/i18n";
 
 type Conv = { conversation_id: string; title: string; updated_at: string };
 
 export default function ChatList() {
   const router = useRouter();
+  const { t, lang } = useT();
   const [convs, setConvs] = useState<Conv[]>([]);
   const [loading, setLoading] = useState(true);
   const [quick, setQuick] = useState("");
@@ -48,8 +50,7 @@ export default function ChatList() {
     setSending(true);
     try {
       const user_tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-      const locale = (typeof navigator !== "undefined" && navigator.language) || "es";
-      const r = await apiPost("/chat/send", { text: quick.trim(), user_tz, locale });
+      const r = await apiPost("/chat/send", { text: quick.trim(), user_tz, locale: lang });
       setQuick("");
       router.push(`/chat/${r.conversation_id}`);
     } catch (e: any) {
@@ -80,8 +81,8 @@ export default function ChatList() {
         ) : convs.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="chatbubbles-outline" size={64} color={Colors.electricBlue} />
-            <Text style={styles.emptyTitle}>Empieza tu primera conversación</Text>
-            <Text style={styles.emptySub}>RAX AI está lista para responder cualquier pregunta.</Text>
+            <Text style={styles.emptyTitle}>{t("empty_chat_title")}</Text>
+            <Text style={styles.emptySub}>{t("empty_chat_sub")}</Text>
           </View>
         ) : (
           <FlatList
@@ -110,7 +111,7 @@ export default function ChatList() {
           <TextInput
             testID="quick-input"
             style={styles.quickInput}
-            placeholder="Pregunta cualquier cosa a RAX AI..."
+            placeholder={t("ask_anything")}
             placeholderTextColor={Colors.textMuted}
             value={quick}
             onChangeText={setQuick}
