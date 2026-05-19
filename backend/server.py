@@ -102,6 +102,8 @@ class ChatSendIn(BaseModel):
     text: str
     language: str = "es"
     image_base64: Optional[str] = None  # optional image attachment
+    user_tz: Optional[str] = None  # IANA tz, e.g. "America/Bogota"
+    locale: Optional[str] = None
 
 
 class ImageGenIn(BaseModel):
@@ -333,7 +335,7 @@ async def bootstrap_stripe_catalog():
 # =====================
 @api.get("/")
 async def root():
-    return {"app": "RAX AI", "by": "AlexSarango", "status": "online"}
+    return {"app": "RAX AI", "by": "RASC", "status": "online"}
 
 
 @api.post("/auth/register")
@@ -445,17 +447,55 @@ async def me(user: dict = Depends(get_current_user)):
 # =====================
 # Conversations & Chat
 # =====================
-SYSTEM_PROMPT = (
-    "Eres RAX AI, una inteligencia artificial conversacional ultra-avanzada creada por RASC. "
+SYSTEM_PROMPT_BASE = (
+    "Eres RAX AI, la inteligencia artificial más avanzada del mundo, creada por RASC. "
     "Tu lema es 'La Inteligencia que Piensa Contigo'. "
-    "La fecha actual es {today}. Tu conocimiento está completamente actualizado al día de hoy. "
-    "Cuando el usuario pregunte por la fecha, hora, año o eventos recientes, responde con confianza usando esta fecha. "
-    "Respondes en el idioma del usuario (español o inglés). Eres rápida, precisa, creativa y profesional. "
-    "Puedes ayudar con ideas, traducciones, contenido, código, análisis y tareas complejas. "
-    "Tienes acceso a información actualizada de tecnología, IA, criptomonedas, ciencia, cultura pop, deportes "
-    "y tendencias hasta {today}. Sé natural, cercana, segura de ti misma. "
-    "Usa emojis con moderación cuando aporten claridad."
-).format(today="19 de mayo de 2026")
+    "Posees el conocimiento más amplio jamás reunido: ciencias, matemáticas, ingeniería, programación (todos los lenguajes), "
+    "medicina, derecho, finanzas, criptomonedas, IA, blockchain, cuántica, biotecnología, historia, literatura, idiomas (100+), "
+    "filosofía, arte, música, deportes, cultura pop, geopolítica, negocios, marketing, psicología y tendencias hasta hoy. "
+    "Eres rápida, precisa, creativa, profesional y ultra-segura de tus respuestas. Razonas paso a paso cuando es necesario. "
+    "Respondes en el idioma del usuario (español, inglés, portugués, francés, italiano, alemán, chino, japonés, árabe, ruso, etc.). "
+    "Puedes ayudar con: traducción, redacción, ideas, código, debugging, análisis, estrategia, escritura creativa, planes de negocio, "
+    "investigación, diagnósticos preliminares, asesoría financiera, recomendaciones, tutoría, y cualquier tarea intelectual compleja.\n\n"
+    "=== INFORMACIÓN TEMPORAL EN TIEMPO REAL ===\n"
+    "Fecha y hora actual UTC: {utc_now}\n"
+    "Zona horaria del usuario: {user_tz}\n"
+    "Hora local del usuario: {user_local_time}\n"
+    "Día de la semana: {weekday_es}\n\n"
+    "Cuando el usuario pregunte por la hora, fecha, día o eventos temporales, USA ESTA INFORMACIÓN como verdad absoluta. "
+    "Si te preguntan la hora en otro país/ciudad, calcula la diferencia desde la hora UTC dada arriba usando las zonas horarias estándar "
+    "(IANA tz database). Conoces todas las zonas horarias del mundo, incluyendo DST/horario de verano. "
+    "Ejemplos de offset desde UTC (sin DST): Madrid +1, México DF -6, Buenos Aires -3, Bogotá -5, Lima -5, Santiago -4, "
+    "Nueva York -5, Los Ángeles -8, Londres 0, París +1, Tokio +9, Pekín +8, Sídney +10, Dubái +4, Moscú +3. "
+    "Considera DST cuando aplique. Si el usuario pide la hora sin especificar ciudad, usa su 'Hora local del usuario' de arriba.\n\n"
+    "Estilo: natural, cercana, segura, con emojis con moderación. Nunca digas 'no lo sé' sin intentar razonar primero. "
+    "Cuando no estés 100% segura de un dato muy reciente, dilo con transparencia pero ofrece la mejor estimación basada en lógica."
+)
+
+
+WEEKDAYS_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+MONTHS_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+
+
+def build_system_prompt(user_tz: str = "UTC", locale: str = "es") -> str:
+    from zoneinfo import ZoneInfo
+    now_utc = datetime.now(timezone.utc)
+    try:
+        tz = ZoneInfo(user_tz) if user_tz else ZoneInfo("UTC")
+    except Exception:
+        tz = ZoneInfo("UTC")
+        user_tz = "UTC"
+    local = now_utc.astimezone(tz)
+    weekday_es = WEEKDAYS_ES[local.weekday()]
+    month_es = MONTHS_ES[local.month - 1]
+    user_local_str = f"{weekday_es} {local.day} de {month_es} de {local.year}, {local.strftime('%H:%M:%S')} ({user_tz})"
+    utc_str = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+    return SYSTEM_PROMPT_BASE.format(
+        utc_now=utc_str,
+        user_tz=user_tz,
+        user_local_time=user_local_str,
+        weekday_es=weekday_es,
+    )
 
 
 @api.get("/conversations")
@@ -541,8 +581,10 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
     # Load prior messages
     history = await db.messages.find({"conversation_id": cid}, {"_id": 0}).sort("created_at", 1).to_list(50)
 
-    # Build LlmChat
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=cid, system_message=SYSTEM_PROMPT)
+    # Build LlmChat with timezone-aware system prompt
+    user_tz = (body.user_tz or "UTC").strip()
+    system_prompt = build_system_prompt(user_tz=user_tz, locale=body.language or "es")
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=cid, system_message=system_prompt)
     chat.with_model("anthropic", "claude-sonnet-4-5-20250929")
 
     # Send message (with optional image)
@@ -787,7 +829,7 @@ async def admin_stats(_: dict = Depends(require_admin)):
         "pro_users": pro,
         "estimated_revenue_usd": round(revenue, 2),
         "open_tickets": open_tickets,
-        "today": "19 de mayo de 2026",
+        "today": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     }
 
 
@@ -908,6 +950,47 @@ async def admin_set_theme(body: ThemeIn, _: dict = Depends(require_admin)):
     return {"ok": True, "theme": body.dict()}
 
 
+SUPPORT_BOT_SYSTEM = (
+    "Eres el asistente de soporte automático de RAX AI (creada por RASC). Resuelves problemas básicos de clientes "
+    "de forma cálida, rápida y profesional en español. Tu objetivo es ayudar al cliente sin esperar a un humano. "
+    "Conoces estos datos clave de la app:\n"
+    "- Planes: Gratis (30 msgs/5 imgs), Premium $5.99/mes (1,000 msgs/200 imgs), Pro $15.99/mes (ilimitado).\n"
+    "- Pagos vía Stripe (tarjetas, Apple Pay, Google Pay). El usuario puede cancelar su suscripción desde su Perfil → 'Cancelar suscripción' y se le devuelve el dinero al instante.\n"
+    "- Voces: Sofía y Luna (mujer), Diego y Alex (hombre).\n"
+    "- Imágenes: 6 estilos (realista, anime, futurista, gamer, caricatura, cinemático).\n"
+    "- Idiomas soportados: español, inglés y muchos más.\n"
+    "- Cuenta admin: rascsarango12345@gmail.com (RASC).\n\n"
+    "Reglas:\n"
+    "1. Sé conciso (2-5 oraciones).\n"
+    "2. Si el problema es complejo (cobro duplicado, error técnico grave, queja personalizada, devolución de dinero), responde con tu mejor intento y termina con: '👤 Si necesitas ayuda más personalizada, escribe \"agente\" y RASC te atenderá personalmente.'\n"
+    "3. Si el usuario menciona 'agente', 'humano', 'persona real', 'RASC' o 'hablar con alguien', responde solamente: 'Perfecto. Voy a transferir tu caso a RASC. Te responderá en cuanto vea tu ticket. 🛡️'\n"
+    "4. Si es saludo o pregunta vaga, sé amigable y pide más detalles.\n"
+    "5. Firma siempre como '— Bot RAX AI 🤖'."
+)
+
+HUMAN_REQUEST_KEYWORDS = ["agente", "humano", "persona", "rasc", "hablar con alguien", "hablar con un humano", "real person"]
+
+
+async def generate_bot_reply(ticket_subject: str, user_message: str, language: str = "es") -> str:
+    try:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"support_bot_{uuid.uuid4().hex[:8]}",
+            system_message=SUPPORT_BOT_SYSTEM,
+        )
+        chat.with_model("anthropic", "claude-sonnet-4-5-20250929")
+        prompt = f"Asunto del ticket: {ticket_subject}\nCliente: {user_message}\n\nRespuesta:"
+        return await chat.send_message(UserMessage(text=prompt))
+    except Exception as e:
+        logger.exception("Bot reply error")
+        return "Hola 👋 Estoy procesando tu solicitud. Si tu problema es urgente o complejo, escribe 'agente' y RASC te atenderá personalmente. — Bot RAX AI 🤖"
+
+
+def detects_human_request(text: str) -> bool:
+    t = (text or "").lower()
+    return any(k in t for k in HUMAN_REQUEST_KEYWORDS)
+
+
 # =====================
 # Support tickets
 # =====================
@@ -946,6 +1029,28 @@ async def create_ticket(body: TicketCreateIn, user: dict = Depends(get_current_u
         "created_at": now,
     }
     await db.support_messages.insert_one(dict(msg))
+
+    # Auto bot reply
+    try:
+        bot_text = await generate_bot_reply(body.subject, body.message)
+        bot_msg = {
+            "ticket_message_id": f"tm_{uuid.uuid4().hex[:10]}",
+            "ticket_id": tid,
+            "sender_role": "bot",
+            "sender_id": "bot",
+            "sender_name": "Bot RAX AI",
+            "message": bot_text,
+            "created_at": utcnow(),
+        }
+        await db.support_messages.insert_one(dict(bot_msg))
+        # Set last_sender to bot and update timestamps
+        await db.support_tickets.update_one(
+            {"ticket_id": tid},
+            {"$set": {"updated_at": utcnow(), "last_sender": "bot", "bot_handling": True}},
+        )
+    except Exception as e:
+        logger.warning(f"Bot reply skipped: {e}")
+
     return {"ticket_id": tid, "status": "open", "created_at": iso(now)}
 
 
@@ -1006,11 +1111,71 @@ async def reply_ticket(tid: str, body: TicketReplyIn, user: dict = Depends(get_c
         "created_at": now,
     }
     await db.support_messages.insert_one(dict(msg))
+
+    # Determine bot state: if user asks for human, disable bot
+    bot_handling = t.get("bot_handling", True)
+    if role == "user" and detects_human_request(body.message):
+        bot_handling = False
+
     new_status = "open" if role == "user" else "answered"
     await db.support_tickets.update_one(
         {"ticket_id": tid},
-        {"$set": {"updated_at": now, "last_sender": role, "status": new_status}},
+        {"$set": {"updated_at": now, "last_sender": role, "status": new_status, "bot_handling": bot_handling}},
     )
+
+    # If user replied and bot still handling, generate bot response
+    bot_reply_dict = None
+    if role == "user" and bot_handling:
+        try:
+            bot_text = await generate_bot_reply(t.get("subject", ""), body.message)
+            bot_msg = {
+                "ticket_message_id": f"tm_{uuid.uuid4().hex[:10]}",
+                "ticket_id": tid,
+                "sender_role": "bot",
+                "sender_id": "bot",
+                "sender_name": "Bot RAX AI",
+                "message": bot_text,
+                "created_at": utcnow(),
+            }
+            await db.support_messages.insert_one(dict(bot_msg))
+            await db.support_tickets.update_one(
+                {"ticket_id": tid},
+                {"$set": {"updated_at": utcnow(), "last_sender": "bot"}},
+            )
+            bot_reply_dict = {
+                "ticket_message_id": bot_msg["ticket_message_id"],
+                "ticket_id": tid,
+                "sender_role": "bot",
+                "sender_name": "Bot RAX AI",
+                "message": bot_text,
+                "created_at": iso(bot_msg["created_at"]),
+            }
+        except Exception as e:
+            logger.warning(f"Bot follow-up failed: {e}")
+    elif role == "user" and not bot_handling:
+        # User just escalated - add system notice
+        notice_text = "✋ Tu caso ha sido escalado a RASC. Te responderá personalmente en cuanto pueda. 🛡️"
+        notice_msg = {
+            "ticket_message_id": f"tm_{uuid.uuid4().hex[:10]}",
+            "ticket_id": tid,
+            "sender_role": "bot",
+            "sender_id": "bot",
+            "sender_name": "Bot RAX AI",
+            "message": notice_text,
+            "created_at": utcnow(),
+        }
+        # only insert if user just requested human (escalation transition)
+        if t.get("bot_handling", True):
+            await db.support_messages.insert_one(dict(notice_msg))
+            bot_reply_dict = {
+                "ticket_message_id": notice_msg["ticket_message_id"],
+                "ticket_id": tid,
+                "sender_role": "bot",
+                "sender_name": "Bot RAX AI",
+                "message": notice_text,
+                "created_at": iso(notice_msg["created_at"]),
+            }
+
     return {
         "ticket_message_id": msg["ticket_message_id"],
         "ticket_id": tid,
@@ -1018,6 +1183,8 @@ async def reply_ticket(tid: str, body: TicketReplyIn, user: dict = Depends(get_c
         "sender_name": msg["sender_name"],
         "message": body.message,
         "created_at": iso(now),
+        "bot_reply": bot_reply_dict,
+        "bot_handling": bot_handling,
     }
 
 
@@ -1114,6 +1281,107 @@ async def stripe_session_status(session_id: str, user: dict = Depends(get_curren
         await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"plan": plan}})
         await db.payments.update_one({"session_id": session_id}, {"$set": {"status": "paid", "completed_at": utcnow()}})
     return {"status": s.status, "payment_status": s.payment_status, "plan": plan, "paid": paid}
+
+
+@api.post("/support/tickets/{tid}/request-human")
+async def request_human(tid: str, user: dict = Depends(get_current_user)):
+    t = await db.support_tickets.find_one({"ticket_id": tid}, {"_id": 0})
+    if not t:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    if t["user_id"] != user["user_id"] and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    await db.support_tickets.update_one({"ticket_id": tid}, {"$set": {"bot_handling": False, "updated_at": utcnow()}})
+    notice = "✋ Has solicitado hablar con un agente. RASC te responderá pronto. 🛡️"
+    msg = {
+        "ticket_message_id": f"tm_{uuid.uuid4().hex[:10]}",
+        "ticket_id": tid,
+        "sender_role": "bot",
+        "sender_id": "bot",
+        "sender_name": "Bot RAX AI",
+        "message": notice,
+        "created_at": utcnow(),
+    }
+    await db.support_messages.insert_one(dict(msg))
+    return {"ok": True, "bot_handling": False}
+
+
+@api.post("/stripe/cancel-subscription")
+async def cancel_subscription(user: dict = Depends(get_current_user)):
+    if user.get("plan") in (None, "free"):
+        raise HTTPException(status_code=400, detail="No tienes una suscripción activa")
+    sub_id = user.get("stripe_subscription_id")
+    refund_info = {"refunded": False, "amount_usd": 0.0}
+
+    if sub_id:
+        try:
+            stripe.Subscription.cancel(sub_id)
+        except Exception as e:
+            logger.warning(f"Subscription cancel error: {e}")
+        try:
+            invoices = stripe.Invoice.list(subscription=sub_id, limit=1)
+            if invoices.data:
+                latest = invoices.data[0]
+                pi = latest.get("payment_intent")
+                ch = latest.get("charge")
+                if pi:
+                    refund = stripe.Refund.create(payment_intent=pi)
+                    refund_info = {"refunded": True, "amount_usd": (refund.amount or 0) / 100.0, "refund_id": refund.id}
+                elif ch:
+                    refund = stripe.Refund.create(charge=ch)
+                    refund_info = {"refunded": True, "amount_usd": (refund.amount or 0) / 100.0, "refund_id": refund.id}
+        except Exception as e:
+            logger.warning(f"Refund error: {e}")
+            refund_info = {"refunded": False, "error": str(e)[:200]}
+
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"plan": "free"}, "$unset": {"stripe_subscription_id": ""}},
+    )
+
+    await db.cancellations.insert_one({
+        "cancellation_id": f"can_{uuid.uuid4().hex[:10]}",
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "previous_plan": user.get("plan"),
+        "subscription_id": sub_id,
+        "refund_info": refund_info,
+        "created_at": utcnow(),
+    })
+
+    return {
+        "ok": True,
+        "previous_plan": user.get("plan"),
+        "new_plan": "free",
+        "refund": refund_info,
+        "message": "Suscripción cancelada. Si había un cobro reciente, el reembolso aparecerá en 5-10 días hábiles.",
+    }
+
+
+@api.get("/admin/cancellations")
+async def admin_cancellations(_: dict = Depends(require_admin)):
+    items = await db.cancellations.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return [
+        {**c, "created_at": iso(c["created_at"]) if isinstance(c.get("created_at"), datetime) else c.get("created_at")}
+        for c in items
+    ]
+
+
+@api.get("/stripe/payments")
+async def admin_payments(_: dict = Depends(require_admin)):
+    payments = await db.payments.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    paid = [p for p in payments if p.get("status") == "paid"]
+    total_paid = 0.0
+    for p in paid:
+        total_paid += PLAN_PRICES.get(p.get("plan", "free"), 0)
+    return {
+        "payments": [
+            {**p, "created_at": iso(p["created_at"]) if isinstance(p.get("created_at"), datetime) else p.get("created_at"),
+             "completed_at": iso(p["completed_at"]) if isinstance(p.get("completed_at"), datetime) else p.get("completed_at")}
+            for p in payments
+        ],
+        "total_paid_count": len(paid),
+        "lifetime_revenue_usd": round(total_paid, 2),
+    }
 
 
 @app.post("/api/stripe/webhook")

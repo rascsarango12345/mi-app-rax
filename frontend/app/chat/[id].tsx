@@ -54,7 +54,9 @@ export default function ChatThread() {
     setText("");
     setSending(true);
     try {
-      const r = await apiPost("/chat/send", { conversation_id: id, text: prompt });
+      const user_tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const locale = (typeof navigator !== "undefined" && navigator.language) || "es";
+      const r = await apiPost("/chat/send", { conversation_id: id, text: prompt, user_tz, locale });
       setMessages((m) => [...m, r.message]);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e: any) {

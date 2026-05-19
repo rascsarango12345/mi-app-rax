@@ -32,7 +32,7 @@ type Ticket = {
 
 type TicketMsg = {
   ticket_message_id: string;
-  sender_role: "user" | "admin";
+  sender_role: "user" | "admin" | "bot";
   sender_name: string;
   message: string;
   created_at: string;
@@ -97,13 +97,27 @@ export default function SupportScreen() {
     setReplying(true);
     try {
       const r = await apiPost(`/support/tickets/${selectedId}/reply`, { message: replyText.trim() });
-      setMsgs((m) => [...m, r]);
+      const msgs_to_add: TicketMsg[] = [r];
+      if (r.bot_reply) msgs_to_add.push(r.bot_reply);
+      setMsgs((m) => [...m, ...msgs_to_add]);
       setReplyText("");
       await load();
     } catch (e: any) {
       if (Platform.OS === "web") window.alert(e?.message);
     } finally {
       setReplying(false);
+    }
+  };
+
+  const requestHuman = async () => {
+    if (!selectedId) return;
+    try {
+      await apiPost(`/support/tickets/${selectedId}/request-human`, {});
+      // Reload ticket to see notice
+      const r = await apiGet(`/support/tickets/${selectedId}`);
+      setMsgs(r.messages);
+    } catch (e: any) {
+      if (Platform.OS === "web") window.alert(e?.message);
     }
   };
 
@@ -129,16 +143,26 @@ export default function SupportScreen() {
                 testID={`tmsg-${item.sender_role}`}
                 style={[
                   styles.bubble,
-                  item.sender_role === "user" ? styles.userBubble : styles.adminBubble,
+                  item.sender_role === "user" ? styles.userBubble : item.sender_role === "bot" ? styles.botBubble : styles.adminBubble,
                 ]}
               >
                 <Text style={styles.bubbleLabel}>
-                  {item.sender_role === "admin" ? "🛡️ Soporte (RASC)" : item.sender_name}
+                  {item.sender_role === "admin"
+                    ? "🛡️ Soporte (RASC)"
+                    : item.sender_role === "bot"
+                    ? "🤖 Bot RAX AI"
+                    : item.sender_name}
                 </Text>
                 <Text style={styles.bubbleText}>{item.message}</Text>
               </View>
             )}
           />
+          {!isAdmin && (
+            <TouchableOpacity testID="btn-request-human" style={styles.humanBtn} onPress={requestHuman}>
+              <Ionicons name="person" size={16} color={Colors.warning} />
+              <Text style={{ color: Colors.warning, fontWeight: "700", fontSize: 13 }}>Hablar con agente humano (RASC)</Text>
+            </TouchableOpacity>
+          )}
           <View style={styles.inputBar}>
             <TextInput
               testID="ticket-reply-input"
@@ -274,6 +298,8 @@ const styles = StyleSheet.create({
   bubble: { padding: 12, borderRadius: Radius.md, maxWidth: "85%" },
   userBubble: { alignSelf: "flex-end", backgroundColor: Colors.surfaceElevated, borderBottomRightRadius: 4, borderWidth: 1, borderColor: Colors.border },
   adminBubble: { alignSelf: "flex-start", backgroundColor: "#000", borderBottomLeftRadius: 4, borderWidth: 1, borderColor: Colors.neonGreen },
+  botBubble: { alignSelf: "flex-start", backgroundColor: "#0a0826", borderBottomLeftRadius: 4, borderWidth: 1, borderColor: Colors.electricBlue },
+  humanBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, marginHorizontal: Spacing.md, marginBottom: 8, borderRadius: Radius.pill, borderWidth: 1, borderColor: Colors.warning, backgroundColor: "rgba(255,184,0,0.08)" },
   bubbleLabel: { color: Colors.electricBlue, fontSize: 11, fontWeight: "700", marginBottom: 4 },
   bubbleText: { color: Colors.textPrimary, fontSize: 14, lineHeight: 20 },
   inputBar: {

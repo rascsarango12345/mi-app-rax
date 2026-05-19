@@ -47,7 +47,9 @@ export default function ChatList() {
     if (!quick.trim()) return;
     setSending(true);
     try {
-      const r = await apiPost("/chat/send", { text: quick.trim() });
+      const user_tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const locale = (typeof navigator !== "undefined" && navigator.language) || "es";
+      const r = await apiPost("/chat/send", { text: quick.trim(), user_tz, locale });
       setQuick("");
       router.push(`/chat/${r.conversation_id}`);
     } catch (e: any) {

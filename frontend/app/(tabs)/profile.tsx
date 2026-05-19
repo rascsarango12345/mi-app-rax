@@ -1,16 +1,49 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Platform, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/src/auth";
 import { Colors, LOGO_URL, Radius, Spacing } from "@/src/theme";
+import { apiPost } from "@/src/api";
+import { useState } from "react";
 
 const PLAN_COLORS: Record<string, string> = { free: "#666", premium: Colors.electricBlue, pro: Colors.neonGreen };
 
 export default function Profile() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, refresh } = useAuth();
+  const [cancelling, setCancelling] = useState(false);
   if (!user) return null;
+
+  const confirmCancel = async () => {
+    const msg = "¿Cancelar tu suscripción? Te devolveremos el dinero de inmediato y pasarás al plan Gratis.";
+    const doCancel = async () => {
+      setCancelling(true);
+      try {
+        const r = await apiPost("/stripe/cancel-subscription", {});
+        const note = r.refund?.refunded
+          ? `Reembolso emitido: $${r.refund.amount_usd}. ${r.message}`
+          : r.message || "Suscripción cancelada.";
+        if (Platform.OS === "web") window.alert(note);
+        else Alert.alert("Cancelación completada", note);
+        await refresh();
+      } catch (e: any) {
+        const err = e?.message || "Error al cancelar";
+        if (Platform.OS === "web") window.alert(err);
+        else Alert.alert("Error", err);
+      } finally {
+        setCancelling(false);
+      }
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm(msg)) await doCancel();
+    } else {
+      Alert.alert("Cancelar suscripción", msg, [
+        { text: "No", style: "cancel" },
+        { text: "Sí, cancelar y reembolsar", style: "destructive", onPress: doCancel },
+      ]);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -51,6 +84,21 @@ export default function Profile() {
           <Text style={styles.rowText}>Mejora a Premium / Pro</Text>
           <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
         </TouchableOpacity>
+
+        {user.plan !== "free" && (
+          <TouchableOpacity
+            testID="btn-cancel-sub"
+            style={[styles.row, { borderColor: Colors.warning }]}
+            onPress={confirmCancel}
+            disabled={cancelling}
+          >
+            <Ionicons name="close-circle-outline" size={20} color={Colors.warning} />
+            <Text style={[styles.rowText, { color: Colors.warning }]}>
+              {cancelling ? "Procesando..." : "Cancelar suscripción · Reembolso instantáneo"}
+            </Text>
+            <View style={{ width: 20 }} />
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity testID="btn-support" style={styles.row} onPress={() => router.push("/support")}>
           <Ionicons name="headset-outline" size={20} color={Colors.electricBlue} />
