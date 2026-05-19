@@ -21,6 +21,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent, FileContentWithMimeType
 from openai import OpenAI
+import stripe
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -40,6 +41,13 @@ ADMIN_EMAILS = {"rascsarango12345@gmail.com"}
 # OpenAI client uses Emergent key (Whisper/TTS via Emergent gateway)
 os.environ["OPENAI_API_KEY"] = EMERGENT_LLM_KEY
 openai_client = OpenAI(api_key=EMERGENT_LLM_KEY, base_url="https://integrations.emergentagent.com/llm")
+
+# Stripe
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+stripe.api_key = STRIPE_SECRET_KEY
+FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "")
 
 # Mongo
 mongo_client = AsyncIOMotorClient(MONGO_URL)
@@ -276,7 +284,48 @@ async def startup():
             })
     except Exception as e:
         logger.warning(f"Admin auto-seed failed: {e}")
+
+    # Bootstrap Stripe products + prices (idempotent)
+    try:
+        await bootstrap_stripe_catalog()
+    except Exception as e:
+        logger.warning(f"Stripe catalog bootstrap failed: {e}")
+
     logger.info("RAX AI backend ready - %s", "19 de mayo de 2026")
+
+
+async def bootstrap_stripe_catalog():
+    """Create Stripe Products + recurring Prices once. Persist IDs in settings collection."""
+    if not STRIPE_SECRET_KEY:
+        logger.warning("STRIPE_SECRET_KEY not set; skipping Stripe bootstrap")
+        return
+    settings = await db.settings.find_one({"key": "stripe_prices"}, {"_id": 0})
+    if settings and settings.get("value", {}).get("premium") and settings.get("value", {}).get("pro"):
+        logger.info("Stripe prices already configured: %s", settings["value"])
+        return
+
+    catalog = {}
+    plans_to_create = [
+        ("premium", "RAX AI Premium", 599, "1,000 mensajes + 200 imágenes / mes"),
+        ("pro", "RAX AI Pro", 1599, "Ilimitado: chat, imágenes, voces, soporte 24/7"),
+    ]
+    for key, name, unit_amount, description in plans_to_create:
+        product = stripe.Product.create(name=name, description=description, metadata={"plan": key, "app": "rax_ai"})
+        price = stripe.Price.create(
+            product=product.id,
+            currency="usd",
+            unit_amount=unit_amount,
+            recurring={"interval": "month"},
+            metadata={"plan": key},
+        )
+        catalog[key] = {"product_id": product.id, "price_id": price.id, "unit_amount": unit_amount}
+        logger.info("Created Stripe %s: product=%s price=%s", key, product.id, price.id)
+
+    await db.settings.update_one(
+        {"key": "stripe_prices"},
+        {"$set": {"key": "stripe_prices", "value": catalog, "updated_at": utcnow()}},
+        upsert=True,
+    )
 
 
 # =====================
@@ -982,6 +1031,169 @@ async def admin_set_ticket_status(tid: str, body: TicketStatusIn, _: dict = Depe
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Ticket not found")
     return {"ok": True, "status": body.status}
+
+
+# =====================
+# Stripe Subscriptions
+# =====================
+class CheckoutIn(BaseModel):
+    plan: Literal["premium", "pro"]
+    origin_url: str  # Frontend origin to redirect back to
+
+
+async def get_stripe_price_id(plan: str) -> str:
+    doc = await db.settings.find_one({"key": "stripe_prices"}, {"_id": 0})
+    if not doc:
+        # Try bootstrapping now
+        await bootstrap_stripe_catalog()
+        doc = await db.settings.find_one({"key": "stripe_prices"}, {"_id": 0})
+    catalog = doc.get("value", {}) if doc else {}
+    info = catalog.get(plan)
+    if not info or not info.get("price_id"):
+        raise HTTPException(status_code=500, detail=f"Stripe price for {plan} not configured")
+    return info["price_id"]
+
+
+@api.get("/stripe/config")
+async def stripe_config():
+    return {
+        "publishable_key": STRIPE_PUBLISHABLE_KEY,
+        "configured": bool(STRIPE_SECRET_KEY),
+    }
+
+
+@api.post("/stripe/create-checkout-session")
+async def create_checkout(body: CheckoutIn, user: dict = Depends(get_current_user)):
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe no configurado")
+    if user.get("is_guest"):
+        raise HTTPException(status_code=400, detail="Crea una cuenta antes de suscribirte")
+    price_id = await get_stripe_price_id(body.plan)
+    origin = body.origin_url.rstrip("/")
+    success_url = f"{origin}/premium?session_id={{CHECKOUT_SESSION_ID}}&status=success"
+    cancel_url = f"{origin}/premium?status=cancel"
+    try:
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            customer_email=user["email"],
+            client_reference_id=user["user_id"],
+            subscription_data={"metadata": {"app_user_id": user["user_id"], "plan": body.plan}},
+            metadata={"app_user_id": user["user_id"], "plan": body.plan},
+            allow_promotion_codes=True,
+        )
+    except Exception as e:
+        logger.exception("Stripe checkout error")
+        raise HTTPException(status_code=502, detail=f"Stripe error: {str(e)[:200]}")
+    # Save payment intent record
+    await db.payments.insert_one({
+        "session_id": session.id,
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "plan": body.plan,
+        "status": "pending",
+        "created_at": utcnow(),
+    })
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+@api.get("/stripe/session-status")
+async def stripe_session_status(session_id: str, user: dict = Depends(get_current_user)):
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Stripe no configurado")
+    try:
+        s = stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Session not found: {str(e)[:120]}")
+    plan = (s.metadata or {}).get("plan") if hasattr(s, "metadata") else None
+    paid = s.payment_status == "paid"
+    if paid and plan and (s.metadata.get("app_user_id") == user["user_id"]):
+        # Upgrade as a fallback (webhook should also do this)
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"plan": plan}})
+        await db.payments.update_one({"session_id": session_id}, {"$set": {"status": "paid", "completed_at": utcnow()}})
+    return {"status": s.status, "payment_status": s.payment_status, "plan": plan, "paid": paid}
+
+
+@app.post("/api/stripe/webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    event = None
+    try:
+        if STRIPE_WEBHOOK_SECRET:
+            event = stripe.Webhook.construct_event(payload=payload, sig_header=sig, secret=STRIPE_WEBHOOK_SECRET)
+        else:
+            # No signature secret configured yet - parse trusted payload (configure in production)
+            import json as _json
+            event = _json.loads(payload.decode("utf-8"))
+            logger.warning("Stripe webhook received without signature verification")
+    except Exception as e:
+        logger.error(f"Webhook construct error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid webhook")
+
+    etype = event.get("type") if isinstance(event, dict) else event["type"]
+    data_object = (event.get("data", {}).get("object") if isinstance(event, dict) else event["data"]["object"]) or {}
+
+    if etype == "checkout.session.completed":
+        meta = data_object.get("metadata") or {}
+        app_user_id = meta.get("app_user_id")
+        plan = meta.get("plan")
+        if app_user_id and plan in ("premium", "pro"):
+            await db.users.update_one(
+                {"user_id": app_user_id},
+                {"$set": {
+                    "plan": plan,
+                    "stripe_customer_id": data_object.get("customer"),
+                    "stripe_subscription_id": data_object.get("subscription"),
+                }},
+            )
+            await db.payments.update_one(
+                {"session_id": data_object.get("id")},
+                {"$set": {"status": "paid", "completed_at": utcnow()}},
+                upsert=False,
+            )
+            logger.info("User %s upgraded to %s via Stripe", app_user_id, plan)
+    elif etype == "customer.subscription.deleted":
+        meta = data_object.get("metadata") or {}
+        app_user_id = meta.get("app_user_id")
+        if app_user_id:
+            await db.users.update_one({"user_id": app_user_id}, {"$set": {"plan": "free"}})
+            logger.info("User %s subscription canceled - reverted to free", app_user_id)
+    elif etype == "invoice.payment_succeeded":
+        # Renewal - ensure plan is still set
+        sub_id = data_object.get("subscription")
+        if sub_id:
+            try:
+                sub = stripe.Subscription.retrieve(sub_id)
+                meta = sub.metadata or {}
+                app_user_id = meta.get("app_user_id")
+                plan = meta.get("plan")
+                if app_user_id and plan:
+                    await db.users.update_one({"user_id": app_user_id}, {"$set": {"plan": plan}})
+            except Exception as e:
+                logger.warning(f"Subscription retrieve failed: {e}")
+
+    return {"received": True}
+
+
+@api.get("/stripe/payments")
+async def admin_payments(_: dict = Depends(require_admin)):
+    payments = await db.payments.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    paid = [p for p in payments if p.get("status") == "paid"]
+    total_paid = 0.0
+    for p in paid:
+        total_paid += PLAN_PRICES.get(p.get("plan", "free"), 0)
+    return {
+        "payments": [
+            {**p, "created_at": iso(p["created_at"]) if isinstance(p.get("created_at"), datetime) else p.get("created_at"),
+             "completed_at": iso(p["completed_at"]) if isinstance(p.get("completed_at"), datetime) else p.get("completed_at")}
+            for p in payments
+        ],
+        "total_paid_count": len(paid),
+        "lifetime_revenue_usd": round(total_paid, 2),
+    }
 
 
 app.include_router(api)

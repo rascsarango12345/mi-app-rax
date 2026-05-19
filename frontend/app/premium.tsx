@@ -1,9 +1,12 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Linking, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Radius, Spacing } from "@/src/theme";
+import { apiPost, apiGet } from "@/src/api";
+import { useAuth } from "@/src/auth";
 
 const PLANS = [
   {
@@ -32,10 +35,56 @@ const PLANS = [
 
 export default function PremiumScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ session_id?: string; status?: string }>();
+  const { user, refresh } = useAuth();
+  const [loading, setLoading] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
-  const onChoose = () => {
-    if (Platform.OS === "web") {
-      window.alert("Los pagos (Apple Pay, Google Pay, Stripe, PayPal) se habilitarán al publicar la app.");
+  // Handle return from Stripe Checkout
+  useEffect(() => {
+    if (params.status === "success" && params.session_id) {
+      (async () => {
+        try {
+          const r = await apiGet(`/stripe/session-status?session_id=${params.session_id}`);
+          if (r.paid) {
+            setStatusMsg(`✅ ¡Pago exitoso! Ahora eres ${r.plan?.toUpperCase()}.`);
+            await refresh();
+          } else {
+            setStatusMsg(`⏳ Pago en proceso: ${r.payment_status}`);
+          }
+        } catch (e: any) {
+          setStatusMsg(`Error al verificar: ${e?.message}`);
+        }
+      })();
+    } else if (params.status === "cancel") {
+      setStatusMsg("Pago cancelado. Puedes intentarlo de nuevo cuando quieras.");
+    }
+  }, [params.status, params.session_id, refresh]);
+
+  const showError = (m: string) => (Platform.OS === "web" ? window.alert(m) : Alert.alert("Aviso", m));
+
+  const onChoose = async (planId: "premium" | "pro") => {
+    if (!user) {
+      showError("Inicia sesión para suscribirte");
+      return;
+    }
+    if (user.is_guest) {
+      showError("Crea una cuenta (no invitado) para suscribirte");
+      return;
+    }
+    setLoading(planId);
+    try {
+      const origin = Platform.OS === "web" ? window.location.origin : (process.env.EXPO_PUBLIC_BACKEND_URL || "");
+      const r = await apiPost("/stripe/create-checkout-session", { plan: planId, origin_url: origin });
+      if (Platform.OS === "web") {
+        window.location.href = r.checkout_url;
+      } else {
+        await Linking.openURL(r.checkout_url);
+      }
+    } catch (e: any) {
+      showError(e?.message || "Error al iniciar pago");
+    } finally {
+      setLoading(null);
     }
   };
 
@@ -51,8 +100,13 @@ export default function PremiumScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: Spacing.md, gap: 14 }}>
+        {statusMsg && (
+          <View style={styles.statusBox} testID="payment-status">
+            <Text style={styles.statusText}>{statusMsg}</Text>
+          </View>
+        )}
         <Text style={styles.intro}>
-          Desbloquea todo el poder de RAX AI: respuestas ilimitadas, imágenes en HD, voces premium y mucho más.
+          Desbloquea todo el poder de RAX AI. Pago seguro con Stripe (Apple Pay · Google Pay · Tarjetas).
         </Text>
         {PLANS.map((p) => (
           <View
@@ -83,16 +137,23 @@ export default function PremiumScreen() {
               <TouchableOpacity
                 testID={`choose-${p.id}`}
                 style={[styles.cta, { backgroundColor: p.color }]}
-                onPress={onChoose}
+                onPress={() => onChoose(p.id as "premium" | "pro")}
+                disabled={loading !== null || user?.plan === p.id}
               >
-                <Text style={styles.ctaText}>Elegir {p.name}</Text>
+                {loading === p.id ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={styles.ctaText}>
+                    {user?.plan === p.id ? `✓ Ya tienes ${p.name}` : `Suscribirse a ${p.name}`}
+                  </Text>
+                )}
               </TouchableOpacity>
             )}
           </View>
         ))}
 
         <Text style={styles.payments}>
-          💳 Apple Pay · Google Pay · Tarjetas · PayPal (disponibles tras publicar)
+          🔒 Pagos seguros por Stripe · Cancela cuando quieras
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -101,38 +162,19 @@ export default function PremiumScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: Spacing.md,
-  },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: Spacing.md },
   title: { color: Colors.textPrimary, fontSize: 18, fontWeight: "800" },
+  statusBox: { padding: Spacing.md, borderRadius: Radius.md, backgroundColor: "rgba(0,255,102,0.1)", borderWidth: 1, borderColor: Colors.success },
+  statusText: { color: Colors.success, fontWeight: "700", textAlign: "center" },
   intro: { color: Colors.textSecondary, textAlign: "center", lineHeight: 20 },
-  planCard: {
-    backgroundColor: "rgba(18,18,18,0.85)",
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
-    borderWidth: 1,
-  },
-  badge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: Radius.pill,
-    marginBottom: 8,
-  },
+  planCard: { backgroundColor: "rgba(18,18,18,0.85)", borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1 },
+  badge: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.pill, marginBottom: 8 },
   badgeText: { color: "#000", fontWeight: "800", fontSize: 10, letterSpacing: 1 },
   planName: { fontSize: 20, fontWeight: "800", letterSpacing: 0.5 },
   price: { color: Colors.textPrimary, fontSize: 26, fontWeight: "800", marginTop: 4 },
   perkRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   perkText: { color: Colors.textPrimary, fontSize: 14 },
-  cta: {
-    marginTop: Spacing.md,
-    paddingVertical: 14,
-    borderRadius: Radius.pill,
-    alignItems: "center",
-  },
+  cta: { marginTop: Spacing.md, paddingVertical: 14, borderRadius: Radius.pill, alignItems: "center" },
   ctaText: { color: "#000", fontWeight: "800", fontSize: 15 },
   payments: { color: Colors.textMuted, textAlign: "center", fontSize: 11, marginTop: 8 },
 });
