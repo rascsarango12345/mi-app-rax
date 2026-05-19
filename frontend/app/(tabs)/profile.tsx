@@ -79,6 +79,12 @@ export default function Profile() {
           </View>
         </View>
 
+        <TouchableOpacity testID="btn-settings" style={styles.row} onPress={() => router.push("/settings")}>
+          <Ionicons name="settings-outline" size={20} color={Colors.electricBlue} />
+          <Text style={styles.rowText}>Configuración (nombre, contraseña, emoji)</Text>
+          <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+        </TouchableOpacity>
+
         <TouchableOpacity testID="btn-premium" style={styles.row} onPress={() => router.push("/premium")}>
           <Ionicons name="diamond-outline" size={20} color={Colors.neonGreen} />
           <Text style={styles.rowText}>Mejora a Premium / Pro</Text>
@@ -116,11 +122,7 @@ export default function Profile() {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => {
-            if (Platform.OS === "web") {
-              window.alert("Términos: Esta app utiliza IA. Privacidad: solo guardamos lo necesario. © AlexSarango 2026.");
-            }
-          }}
+          onPress={() => router.push("/terms")}
         >
           <Ionicons name="document-text-outline" size={20} color={Colors.textSecondary} />
           <Text style={styles.rowText}>Términos y Privacidad</Text>

@@ -9,14 +9,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors, Radius, Spacing } from "@/src/theme";
 import { apiGet, apiPost } from "@/src/api";
 
-type Msg = { message_id: string; role: "user" | "assistant"; content: string; created_at: string };
+type Msg = { message_id: string; role: "user" | "assistant"; content: string; created_at: string; has_image?: boolean; image_preview?: string };
 
 export default function ChatThread() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -26,6 +28,27 @@ export default function ChatThread() {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const listRef = useRef<FlatList>(null);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
+
+  const pickImage = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        if (Platform.OS === "web") window.alert("Necesitamos permiso para tu galería");
+        return;
+      }
+      const r = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.7,
+        base64: true,
+      });
+      if (!r.canceled && r.assets[0]?.base64) {
+        setPendingImage(r.assets[0].base64);
+      }
+    } catch (e: any) {
+      if (Platform.OS === "web") window.alert(e?.message);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -42,21 +65,25 @@ export default function ChatThread() {
   }, [id]);
 
   const send = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() && !pendingImage) return;
     const userMsg: Msg = {
       message_id: `tmp_${Date.now()}`,
       role: "user",
-      content: text.trim(),
+      content: text.trim() || "(imagen)",
       created_at: new Date().toISOString(),
+      has_image: !!pendingImage,
+      image_preview: pendingImage ? `data:image/jpeg;base64,${pendingImage}` : undefined,
     };
     setMessages((m) => [...m, userMsg]);
-    const prompt = text.trim();
+    const prompt = text.trim() || "Analiza esta imagen en detalle";
+    const imgB64 = pendingImage;
     setText("");
+    setPendingImage(null);
     setSending(true);
     try {
       const user_tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
       const locale = (typeof navigator !== "undefined" && navigator.language) || "es";
-      const r = await apiPost("/chat/send", { conversation_id: id, text: prompt, user_tz, locale });
+      const r = await apiPost("/chat/send", { conversation_id: id, text: prompt, user_tz, locale, image_base64: imgB64 || undefined });
       setMessages((m) => [...m, r.message]);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e: any) {
@@ -106,6 +133,9 @@ export default function ChatThread() {
                 {item.role === "assistant" && (
                   <Text style={styles.aiLabel}>RAX AI</Text>
                 )}
+                {item.image_preview && (
+                  <Image source={{ uri: item.image_preview }} style={styles.msgImage} />
+                )}
                 <Text style={[styles.bubbleText, item.role === "user" && { color: "#fff" }]}>
                   {item.content}
                 </Text>
@@ -127,20 +157,33 @@ export default function ChatThread() {
         )}
 
         <View style={styles.inputBar}>
-          <TextInput
-            testID="chat-input"
-            style={styles.input}
-            placeholder="Escribe un mensaje..."
-            placeholderTextColor={Colors.textMuted}
-            value={text}
-            onChangeText={setText}
-            multiline
-            maxLength={4000}
-            onSubmitEditing={send}
-          />
-          <TouchableOpacity testID="chat-send" style={styles.sendBtn} onPress={send} disabled={sending || !text.trim()}>
-            <Ionicons name="arrow-up" size={20} color="#000" />
-          </TouchableOpacity>
+          {pendingImage && (
+            <View style={styles.previewWrap}>
+              <Image source={{ uri: `data:image/jpeg;base64,${pendingImage}` }} style={styles.preview} />
+              <TouchableOpacity style={styles.removePreview} onPress={() => setPendingImage(null)}>
+                <Ionicons name="close-circle" size={20} color={Colors.error} />
+              </TouchableOpacity>
+            </View>
+          )}
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-end" }}>
+            <TouchableOpacity testID="btn-attach" style={styles.attachBtn} onPress={pickImage}>
+              <Ionicons name="image" size={22} color={Colors.electricBlue} />
+            </TouchableOpacity>
+            <TextInput
+              testID="chat-input"
+              style={styles.input}
+              placeholder={pendingImage ? "Describe lo que quieres saber..." : "Escribe un mensaje..."}
+              placeholderTextColor={Colors.textMuted}
+              value={text}
+              onChangeText={setText}
+              multiline
+              maxLength={4000}
+              onSubmitEditing={send}
+            />
+            <TouchableOpacity testID="chat-send" style={styles.sendBtn} onPress={send} disabled={sending || (!text.trim() && !pendingImage)}>
+              <Ionicons name="arrow-up" size={20} color="#000" />
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -186,14 +229,27 @@ const styles = StyleSheet.create({
   typingRow: { flexDirection: "row", alignItems: "center", padding: 8, paddingLeft: 16, gap: 8 },
   typing: { color: Colors.textSecondary, fontSize: 12 },
   inputBar: {
-    flexDirection: "row",
-    padding: Spacing.md,
-    gap: 8,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     backgroundColor: Colors.surface,
-    alignItems: "flex-end",
+    gap: 6,
   },
+  attachBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: Colors.electricBlue,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewWrap: { alignSelf: "flex-start", position: "relative" },
+  preview: { width: 80, height: 80, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.electricBlue },
+  removePreview: { position: "absolute", top: -8, right: -8, backgroundColor: "#000", borderRadius: 10 },
+  msgImage: { width: 220, height: 160, borderRadius: Radius.md, marginBottom: 6 },
   input: {
     flex: 1,
     backgroundColor: Colors.surfaceElevated,

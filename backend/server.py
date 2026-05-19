@@ -22,6 +22,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent, FileContentWithMimeType
 from openai import OpenAI
 import stripe
+from duckduckgo_search import DDGS
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -88,6 +89,7 @@ class UserOut(BaseModel):
     email: str
     name: str
     picture: Optional[str] = None
+    avatar_emoji: Optional[str] = None
     plan: str = "free"
     is_admin: bool = False
     is_blocked: bool = False
@@ -95,6 +97,7 @@ class UserOut(BaseModel):
     created_at: str
     messages_used: int = 0
     images_used: int = 0
+    chat_photos_today: int = 0
 
 
 class ChatSendIn(BaseModel):
@@ -161,9 +164,9 @@ STYLE_HINTS = {
 }
 
 PLAN_LIMITS = {
-    "free": {"messages": 30, "images": 5},
-    "premium": {"messages": 1000, "images": 200},
-    "pro": {"messages": 99999, "images": 99999},
+    "free": {"messages": 30, "images": 5, "chat_photos": 10},
+    "premium": {"messages": 1000, "images": 200, "chat_photos": 40},
+    "pro": {"messages": 99999, "images": 99999, "chat_photos": 99999},
 }
 
 PLAN_PRICES = {"free": 0.0, "premium": 5.99, "pro": 15.99}
@@ -205,6 +208,7 @@ def user_to_out(u: dict) -> UserOut:
         email=u["email"],
         name=u.get("name") or u["email"].split("@")[0],
         picture=u.get("picture"),
+        avatar_emoji=u.get("avatar_emoji"),
         plan=u.get("plan", "free"),
         is_admin=u.get("is_admin", False) or (u["email"] in ADMIN_EMAILS),
         is_blocked=u.get("is_blocked", False),
@@ -212,6 +216,7 @@ def user_to_out(u: dict) -> UserOut:
         created_at=iso(u.get("created_at", utcnow())) if isinstance(u.get("created_at"), datetime) else (u.get("created_at") or iso(utcnow())),
         messages_used=u.get("messages_used", 0),
         images_used=u.get("images_used", 0),
+        chat_photos_today=u.get("chat_photos_today", 0),
     )
 
 
@@ -248,6 +253,69 @@ async def check_quota(user: dict, kind: str):
 
 async def bump_quota(user_id: str, kind: str):
     await db.users.update_one({"user_id": user_id}, {"$inc": {f"{kind}_used": 1}})
+
+
+async def check_chat_photo_quota(user: dict):
+    """Daily-reset photo quota for chat uploads."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    last_date = user.get("chat_photos_date")
+    used = user.get("chat_photos_today", 0)
+    if last_date != today:
+        used = 0
+    limit = PLAN_LIMITS[user.get("plan", "free")]["chat_photos"]
+    if used >= limit:
+        raise HTTPException(status_code=402, detail=f"Límite de {limit} fotos/día alcanzado. Mejora tu plan para enviar más.")
+    return today, used
+
+
+async def bump_chat_photo(user_id: str, today: str, used: int):
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"chat_photos_date": today, "chat_photos_today": used + 1}},
+    )
+
+
+REAL_TIME_KEYWORDS = [
+    "ahora", "hoy", "actualmente", "reciente", "última hora", "noticias",
+    "precio", "cotización", "bitcoin", "btc", "eth", "dolar", "euro",
+    "clima", "tiempo en", "temperatura", "lluvia", "pronóstico",
+    "puntaje", "marcador", "ganó", "perdió", "partido",
+    "ranking", "presidente", "elecciones", "guerra", "covid",
+    "stock", "acciones", "nasdaq", "nyse", "trump", "biden",
+]
+
+
+def needs_web_search(text: str) -> bool:
+    t = (text or "").lower()
+    return any(k in t for k in REAL_TIME_KEYWORDS)
+
+
+def do_web_search(query: str, max_results: int = 5) -> str:
+    """Returns markdown-formatted top web results. Multi-strategy with fallbacks."""
+    results = []
+    # Try DDG text
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=max_results, region="wt-wt", safesearch="moderate"))
+    except Exception as e:
+        logger.warning(f"DDG text search failed: {e}")
+    # Try news search if no text results
+    if not results:
+        try:
+            with DDGS() as ddgs:
+                results = list(ddgs.news(query, max_results=max_results, region="wt-wt"))
+        except Exception as e:
+            logger.warning(f"DDG news search failed: {e}")
+    if not results:
+        return ""
+    lines = ["=== INFORMACIÓN ACTUALIZADA DE LA WEB (DuckDuckGo / Google) ==="]
+    for i, r in enumerate(results[:max_results], 1):
+        title = r.get("title", "")
+        snippet = r.get("body") or r.get("excerpt") or ""
+        href = r.get("href") or r.get("url") or ""
+        lines.append(f"[{i}] {title}\n{snippet}\nFuente: {href}\n")
+    lines.append("=== INSTRUCCIÓN: USA esta información actualizada para responder con datos reales y actuales. NO digas que no tienes datos en tiempo real. ===")
+    return "\n".join(lines)
 
 
 # =====================
@@ -444,6 +512,87 @@ async def me(user: dict = Depends(get_current_user)):
     return user_to_out(user).dict()
 
 
+class UpdateProfileIn(BaseModel):
+    name: Optional[str] = None
+    avatar_emoji: Optional[str] = None
+
+
+@api.patch("/users/me")
+async def update_profile(body: UpdateProfileIn, user: dict = Depends(get_current_user)):
+    updates = {}
+    if body.name is not None and body.name.strip():
+        updates["name"] = body.name.strip()[:60]
+    if body.avatar_emoji is not None:
+        updates["avatar_emoji"] = body.avatar_emoji.strip()[:8]
+    if updates:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})
+    updated = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    return user_to_out(updated).dict()
+
+
+class ChangePasswordIn(BaseModel):
+    current_password: Optional[str] = None
+    new_password: str
+
+
+@api.post("/users/me/password")
+async def change_password(body: ChangePasswordIn, user: dict = Depends(get_current_user)):
+    if len(body.new_password) < 6:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
+    if user.get("is_guest"):
+        raise HTTPException(status_code=400, detail="Las cuentas invitadas no tienen contraseña")
+    # If user has an existing password, verify current_password
+    if user.get("password_hash"):
+        if not body.current_password or not verify_password(body.current_password, user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Contraseña actual incorrecta")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"password_hash": hash_password(body.new_password)}},
+    )
+    return {"ok": True}
+
+
+# =====================
+# Weather (Open-Meteo, no key)
+# =====================
+@api.get("/weather")
+async def weather(city: str, user: dict = Depends(get_current_user)):
+    async with httpx.AsyncClient(timeout=15) as h:
+        # 1. Geocoding
+        geo = await h.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={"name": city, "count": 1, "language": "es", "format": "json"},
+        )
+        if geo.status_code != 200 or not geo.json().get("results"):
+            raise HTTPException(status_code=404, detail=f"Ciudad '{city}' no encontrada")
+        place = geo.json()["results"][0]
+        lat, lon = place["latitude"], place["longitude"]
+        # 2. Weather + 7-day forecast
+        w = await h.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,is_day",
+                "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+                "timezone": "auto",
+                "forecast_days": 7,
+            },
+        )
+    if w.status_code != 200:
+        raise HTTPException(status_code=502, detail="Open-Meteo error")
+    data = w.json()
+    return {
+        "city": place.get("name"),
+        "country": place.get("country"),
+        "lat": lat,
+        "lon": lon,
+        "timezone": data.get("timezone"),
+        "current": data.get("current"),
+        "daily": data.get("daily"),
+    }
+
+
 # =====================
 # Conversations & Chat
 # =====================
@@ -584,6 +733,15 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
     # Build LlmChat with timezone-aware system prompt
     user_tz = (body.user_tz or "UTC").strip()
     system_prompt = build_system_prompt(user_tz=user_tz, locale=body.language or "es")
+
+    # Web search fallback for real-time info
+    extra_context = ""
+    if needs_web_search(body.text):
+        web_results = do_web_search(body.text, max_results=5)
+        if web_results:
+            extra_context = "\n\n" + web_results
+            system_prompt = system_prompt + extra_context
+
     chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=cid, system_message=system_prompt)
     chat.with_model("anthropic", "claude-sonnet-4-5-20250929")
 
@@ -610,6 +768,8 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
     await db.messages.insert_one(dict(ai_msg_doc))
     await db.conversations.update_one({"conversation_id": cid}, {"$set": {"updated_at": utcnow()}})
     await bump_quota(user["user_id"], "messages")
+    if body.image_base64 and today_date is not None:
+        await bump_chat_photo(user["user_id"], today_date, used_photos)
 
     return {
         "conversation_id": cid,
@@ -1198,6 +1358,87 @@ async def admin_set_ticket_status(tid: str, body: TicketStatusIn, _: dict = Depe
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Ticket not found")
     return {"ok": True, "status": body.status}
+
+
+# =====================
+# Game (word scramble) for distraction
+# =====================
+WORD_BANK = [
+    # (word, category, hint)
+    ("INTELIGENCIA", "Tecnología", "Capacidad de razonar y aprender"),
+    ("FUTURO", "Tiempo", "Lo que viene después de ahora"),
+    ("MUSICA", "Arte", "Sonidos organizados que emocionan"),
+    ("OCEANO", "Naturaleza", "Gran masa de agua salada"),
+    ("MONTANA", "Naturaleza", "Elevación natural del terreno"),
+    ("LIBERTAD", "Concepto", "Capacidad de actuar sin restricciones"),
+    ("AMISTAD", "Sentimiento", "Vínculo afectivo desinteresado"),
+    ("UNIVERSO", "Ciencia", "Todo lo que existe"),
+    ("CHOCOLATE", "Comida", "Delicia hecha de cacao"),
+    ("RELAMPAGO", "Naturaleza", "Descarga eléctrica en una tormenta"),
+    ("AVENTURA", "Vida", "Experiencia emocionante e inesperada"),
+    ("BIBLIOTECA", "Lugar", "Edificio lleno de libros"),
+    ("AURORA", "Naturaleza", "Luz natural del amanecer"),
+    ("MARIPOSA", "Animal", "Insecto colorido que vuela"),
+    ("VOLCAN", "Naturaleza", "Montaña que expulsa lava"),
+    ("ESPERANZA", "Sentimiento", "Confianza en lograr algo deseado"),
+    ("GUITARRA", "Música", "Instrumento de seis cuerdas"),
+    ("PLANETA", "Espacio", "Cuerpo celeste que orbita una estrella"),
+    ("MISTERIO", "Concepto", "Algo difícil de comprender"),
+    ("LEYENDA", "Historia", "Relato tradicional sobre hechos sorprendentes"),
+    ("DIAMANTE", "Mineral", "Piedra preciosa muy dura y brillante"),
+    ("SUBMARINO", "Vehículo", "Nave que viaja bajo el agua"),
+    ("ESTRELLA", "Espacio", "Cuerpo celeste que brilla con luz propia"),
+    ("CASCADA", "Naturaleza", "Caída de agua desde altura"),
+    ("FANTASMA", "Misterio", "Espíritu de un muerto según las leyendas"),
+]
+
+
+def scramble_word(word: str) -> str:
+    import random
+    letters = list(word)
+    for _ in range(20):
+        random.shuffle(letters)
+        s = "".join(letters)
+        if s != word:
+            return s
+    return "".join(letters)
+
+
+@api.get("/game/word")
+async def game_word(user: dict = Depends(get_current_user)):
+    import random
+    word, category, hint = random.choice(WORD_BANK)
+    scrambled = scramble_word(word)
+    return {
+        "game_id": f"g_{uuid.uuid4().hex[:10]}",
+        "scrambled": scrambled,
+        "length": len(word),
+        "category": category,
+        "hint": hint,
+        "answer_hash": hash_password(word),  # used for verification
+    }
+
+
+class GameCheckIn(BaseModel):
+    answer: str
+    answer_hash: str
+
+
+@api.post("/game/check")
+async def game_check(body: GameCheckIn, user: dict = Depends(get_current_user)):
+    correct = verify_password(body.answer.strip().upper(), body.answer_hash)
+    if correct:
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$inc": {"game_wins": 1}},
+        )
+    return {"correct": correct}
+
+
+@api.get("/game/leaderboard")
+async def game_leaderboard():
+    top = await db.users.find({"game_wins": {"$gt": 0}}, {"_id": 0, "name": 1, "game_wins": 1, "avatar_emoji": 1}).sort("game_wins", -1).limit(10).to_list(10)
+    return top
 
 
 # =====================

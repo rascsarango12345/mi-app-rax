@@ -71,6 +71,7 @@ export default function Splash() {
       <Animated.View style={[styles.taglineWrap, taglineStyle]}>
         <Text style={styles.poweredBy}>POWERED BY</Text>
         <Text style={styles.rasc}>R · A · S · C</Text>
+        <Text style={styles.fullName}>SARANGO CABRERA</Text>
       </Animated.View>
     </View>
   );
@@ -99,7 +100,7 @@ const styles = StyleSheet.create({
   logo: { width: "100%", height: "100%" },
   taglineWrap: {
     position: "absolute",
-    bottom: 80,
+    bottom: 70,
     alignItems: "center",
   },
   poweredBy: {
@@ -118,5 +119,12 @@ const styles = StyleSheet.create({
     textShadowColor: Colors.glowBlue,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 20,
+  },
+  fullName: {
+    color: Colors.textMuted,
+    fontSize: 10,
+    letterSpacing: 4,
+    fontWeight: "600",
+    marginTop: 8,
   },
 });
