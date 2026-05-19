@@ -8,16 +8,6 @@
     "scheme": "frontend",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000"
-      },
-      "edgeToEdgeEnabled": true
-    },
     "web": {
       "bundler": "metro",
       "output": "static",
@@ -33,8 +23,37 @@
           "resizeMode": "contain",
           "backgroundColor": "#000"
         }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Permite que RAX AI escuche para transcribir tu voz."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite seleccionar imágenes para analizar con RAX AI.",
+          "cameraPermission": "Permite capturar fotos para analizar con RAX AI."
+        }
       ]
     ],
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "RAX AI usa el micrófono para transcribir tu voz.",
+        "NSPhotoLibraryUsageDescription": "Selecciona imágenes para que RAX AI las analice.",
+        "NSCameraUsageDescription": "Captura fotos para que RAX AI las analice."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#000"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": ["RECORD_AUDIO", "READ_MEDIA_IMAGES", "CAMERA"]
+    },
     "experiments": {
       "typedRoutes": true
     }
