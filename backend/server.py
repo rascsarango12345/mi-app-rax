@@ -35,7 +35,7 @@ EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
 JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALG = "HS256"
 JWT_EXPIRE_DAYS = 7
-ADMIN_EMAILS = {"admin@raxai.com", "alex@alexsarango.com"}
+ADMIN_EMAILS = {"rascsarango12345@gmail.com"}
 
 # OpenAI client uses Emergent key (Whisper/TTS via Emergent gateway)
 os.environ["OPENAI_API_KEY"] = EMERGENT_LLM_KEY
@@ -152,9 +152,11 @@ STYLE_HINTS = {
 
 PLAN_LIMITS = {
     "free": {"messages": 30, "images": 5},
-    "premium": {"messages": 500, "images": 100},
+    "premium": {"messages": 1000, "images": 200},
     "pro": {"messages": 99999, "images": 99999},
 }
+
+PLAN_PRICES = {"free": 0.0, "premium": 5.99, "pro": 15.99}
 
 
 def utcnow() -> datetime:
@@ -249,7 +251,32 @@ async def startup():
     await db.conversations.create_index([("user_id", 1), ("updated_at", -1)])
     await db.messages.create_index([("conversation_id", 1), ("created_at", 1)])
     await db.images.create_index([("user_id", 1), ("created_at", -1)])
-    logger.info("RAX AI backend ready")
+    await db.support_tickets.create_index([("user_id", 1), ("updated_at", -1)])
+    await db.support_tickets.create_index("ticket_id", unique=True)
+    await db.support_messages.create_index([("ticket_id", 1), ("created_at", 1)])
+    await db.settings.create_index("key", unique=True)
+    # Auto-seed admin on startup
+    try:
+        email = "rascsarango12345@gmail.com"
+        existing = await db.users.find_one({"email": email})
+        if not existing:
+            await db.users.insert_one({
+                "user_id": f"user_{uuid.uuid4().hex[:12]}",
+                "email": email,
+                "name": "RASC",
+                "password_hash": hash_password("Rasc2026!RaxAI"),
+                "plan": "pro",
+                "is_admin": True,
+                "is_blocked": False,
+                "is_guest": False,
+                "messages_used": 0,
+                "images_used": 0,
+                "created_at": utcnow(),
+                "provider": "email",
+            })
+    except Exception as e:
+        logger.warning(f"Admin auto-seed failed: {e}")
+    logger.info("RAX AI backend ready - %s", "19 de mayo de 2026")
 
 
 # =====================
@@ -370,12 +397,16 @@ async def me(user: dict = Depends(get_current_user)):
 # Conversations & Chat
 # =====================
 SYSTEM_PROMPT = (
-    "Eres RAX AI, una inteligencia artificial conversacional avanzada creada por AlexSarango. "
+    "Eres RAX AI, una inteligencia artificial conversacional ultra-avanzada creada por RASC. "
     "Tu lema es 'La Inteligencia que Piensa Contigo'. "
+    "La fecha actual es {today}. Tu conocimiento está completamente actualizado al día de hoy. "
+    "Cuando el usuario pregunte por la fecha, hora, año o eventos recientes, responde con confianza usando esta fecha. "
     "Respondes en el idioma del usuario (español o inglés). Eres rápida, precisa, creativa y profesional. "
     "Puedes ayudar con ideas, traducciones, contenido, código, análisis y tareas complejas. "
-    "Sé natural, cercana y útil. Usa emojis con moderación cuando aporten claridad."
-)
+    "Tienes acceso a información actualizada de tecnología, IA, criptomonedas, ciencia, cultura pop, deportes "
+    "y tendencias hasta {today}. Sé natural, cercana, segura de ti misma. "
+    "Usa emojis con moderación cuando aporten claridad."
+).format(today="19 de mayo de 2026")
 
 
 @api.get("/conversations")
@@ -695,8 +726,9 @@ async def admin_stats(_: dict = Depends(require_admin)):
     blocked = await db.users.count_documents({"is_blocked": True})
     premium = await db.users.count_documents({"plan": "premium"})
     pro = await db.users.count_documents({"plan": "pro"})
-    # estimated revenue
-    revenue = premium * 9.99 + pro * 19.99
+    # estimated revenue (monthly recurring)
+    revenue = premium * PLAN_PRICES["premium"] + pro * PLAN_PRICES["pro"]
+    open_tickets = await db.support_tickets.count_documents({"status": "open"})
     return {
         "total_users": total_users,
         "total_messages": total_msgs,
@@ -705,6 +737,8 @@ async def admin_stats(_: dict = Depends(require_admin)):
         "premium_users": premium,
         "pro_users": pro,
         "estimated_revenue_usd": round(revenue, 2),
+        "open_tickets": open_tickets,
+        "today": "19 de mayo de 2026",
     }
 
 
@@ -726,22 +760,21 @@ async def admin_block_user(user_id: str, body: BlockUserIn, _: dict = Depends(re
 
 @api.post("/admin/seed-admin")
 async def seed_admin():
-    """Idempotent admin seeding. Safe to call multiple times."""
-    email = "admin@raxai.com"
-    password = "RaxAI2026!"
+    """Idempotent admin seeding. Owner account for RASC."""
+    email = "rascsarango12345@gmail.com"
+    password = "Rasc2026!RaxAI"
     existing = await db.users.find_one({"email": email})
     if existing:
-        # update password to ensure consistency
         await db.users.update_one(
             {"email": email},
-            {"$set": {"password_hash": hash_password(password), "is_admin": True, "is_blocked": False}},
+            {"$set": {"password_hash": hash_password(password), "is_admin": True, "is_blocked": False, "plan": "pro", "name": "RASC"}},
         )
         return {"ok": True, "seeded": False, "email": email}
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     await db.users.insert_one({
         "user_id": user_id,
         "email": email,
-        "name": "Admin RAX",
+        "name": "RASC",
         "password_hash": hash_password(password),
         "plan": "pro",
         "is_admin": True,
@@ -753,6 +786,202 @@ async def seed_admin():
         "provider": "email",
     })
     return {"ok": True, "seeded": True, "email": email}
+
+
+# =====================
+# Subscriptions (admin view)
+# =====================
+@api.get("/admin/subscriptions")
+async def admin_subscriptions(_: dict = Depends(require_admin)):
+    """Get all paying users (premium + pro) with revenue breakdown."""
+    paying = await db.users.find(
+        {"plan": {"$in": ["premium", "pro"]}, "is_blocked": False},
+        {"_id": 0, "password_hash": 0},
+    ).sort("created_at", -1).to_list(500)
+
+    subs = []
+    for u in paying:
+        price = PLAN_PRICES.get(u.get("plan"), 0)
+        subs.append({
+            "user_id": u["user_id"],
+            "email": u["email"],
+            "name": u.get("name", u["email"].split("@")[0]),
+            "plan": u["plan"],
+            "monthly_price_usd": price,
+            "messages_used": u.get("messages_used", 0),
+            "images_used": u.get("images_used", 0),
+            "since": iso(u["created_at"]) if isinstance(u.get("created_at"), datetime) else u.get("created_at"),
+        })
+    total_monthly = sum(s["monthly_price_usd"] for s in subs)
+    return {
+        "subscriptions": subs,
+        "total_active": len(subs),
+        "monthly_revenue_usd": round(total_monthly, 2),
+        "annual_projection_usd": round(total_monthly * 12, 2),
+    }
+
+
+# =====================
+# Theme customization
+# =====================
+DEFAULT_THEME = {
+    "primary_color": "#00E5FF",
+    "accent_color": "#7C4DFF",
+    "success_color": "#00FF66",
+    "background_color": "#050505",
+    "preset": "neon_blue",
+}
+
+
+@api.get("/theme")
+async def get_theme():
+    doc = await db.settings.find_one({"key": "theme"}, {"_id": 0})
+    if not doc:
+        return DEFAULT_THEME
+    return doc.get("value", DEFAULT_THEME)
+
+
+class ThemeIn(BaseModel):
+    primary_color: str = "#00E5FF"
+    accent_color: str = "#7C4DFF"
+    success_color: str = "#00FF66"
+    background_color: str = "#050505"
+    preset: str = "custom"
+
+
+@api.put("/admin/theme")
+async def admin_set_theme(body: ThemeIn, _: dict = Depends(require_admin)):
+    await db.settings.update_one(
+        {"key": "theme"},
+        {"$set": {"key": "theme", "value": body.dict(), "updated_at": utcnow()}},
+        upsert=True,
+    )
+    return {"ok": True, "theme": body.dict()}
+
+
+# =====================
+# Support tickets
+# =====================
+class TicketCreateIn(BaseModel):
+    subject: str
+    message: str
+
+
+class TicketReplyIn(BaseModel):
+    message: str
+
+
+@api.post("/support/tickets")
+async def create_ticket(body: TicketCreateIn, user: dict = Depends(get_current_user)):
+    tid = f"ticket_{uuid.uuid4().hex[:12]}"
+    now = utcnow()
+    doc = {
+        "ticket_id": tid,
+        "user_id": user["user_id"],
+        "user_email": user["email"],
+        "user_name": user.get("name", user["email"].split("@")[0]),
+        "subject": body.subject[:120],
+        "status": "open",
+        "created_at": now,
+        "updated_at": now,
+        "last_sender": "user",
+    }
+    await db.support_tickets.insert_one(dict(doc))
+    msg = {
+        "ticket_message_id": f"tm_{uuid.uuid4().hex[:10]}",
+        "ticket_id": tid,
+        "sender_role": "user",
+        "sender_id": user["user_id"],
+        "sender_name": user.get("name", "Usuario"),
+        "message": body.message,
+        "created_at": now,
+    }
+    await db.support_messages.insert_one(dict(msg))
+    return {"ticket_id": tid, "status": "open", "created_at": iso(now)}
+
+
+@api.get("/support/tickets")
+async def list_tickets(user: dict = Depends(get_current_user)):
+    is_admin = user.get("is_admin") or (user["email"] in ADMIN_EMAILS)
+    q = {} if is_admin else {"user_id": user["user_id"]}
+    tickets = await db.support_tickets.find(q, {"_id": 0}).sort("updated_at", -1).to_list(500)
+    return [
+        {
+            **t,
+            "created_at": iso(t["created_at"]) if isinstance(t.get("created_at"), datetime) else t.get("created_at"),
+            "updated_at": iso(t["updated_at"]) if isinstance(t.get("updated_at"), datetime) else t.get("updated_at"),
+        }
+        for t in tickets
+    ]
+
+
+@api.get("/support/tickets/{tid}")
+async def get_ticket(tid: str, user: dict = Depends(get_current_user)):
+    is_admin = user.get("is_admin") or (user["email"] in ADMIN_EMAILS)
+    t = await db.support_tickets.find_one({"ticket_id": tid}, {"_id": 0})
+    if not t:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    if not is_admin and t["user_id"] != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    msgs = await db.support_messages.find({"ticket_id": tid}, {"_id": 0}).sort("created_at", 1).to_list(1000)
+    return {
+        "ticket": {
+            **t,
+            "created_at": iso(t["created_at"]) if isinstance(t.get("created_at"), datetime) else t.get("created_at"),
+            "updated_at": iso(t["updated_at"]) if isinstance(t.get("updated_at"), datetime) else t.get("updated_at"),
+        },
+        "messages": [
+            {**m, "created_at": iso(m["created_at"]) if isinstance(m.get("created_at"), datetime) else m.get("created_at")}
+            for m in msgs
+        ],
+    }
+
+
+@api.post("/support/tickets/{tid}/reply")
+async def reply_ticket(tid: str, body: TicketReplyIn, user: dict = Depends(get_current_user)):
+    is_admin = user.get("is_admin") or (user["email"] in ADMIN_EMAILS)
+    t = await db.support_tickets.find_one({"ticket_id": tid}, {"_id": 0})
+    if not t:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    if not is_admin and t["user_id"] != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    role = "admin" if is_admin else "user"
+    now = utcnow()
+    msg = {
+        "ticket_message_id": f"tm_{uuid.uuid4().hex[:10]}",
+        "ticket_id": tid,
+        "sender_role": role,
+        "sender_id": user["user_id"],
+        "sender_name": user.get("name", "RASC" if is_admin else "Usuario"),
+        "message": body.message,
+        "created_at": now,
+    }
+    await db.support_messages.insert_one(dict(msg))
+    new_status = "open" if role == "user" else "answered"
+    await db.support_tickets.update_one(
+        {"ticket_id": tid},
+        {"$set": {"updated_at": now, "last_sender": role, "status": new_status}},
+    )
+    return {
+        "ticket_message_id": msg["ticket_message_id"],
+        "ticket_id": tid,
+        "sender_role": role,
+        "sender_name": msg["sender_name"],
+        "message": body.message,
+        "created_at": iso(now),
+    }
+
+
+class TicketStatusIn(BaseModel):
+    status: Literal["open", "answered", "closed"]
+
+
+@api.patch("/admin/support/tickets/{tid}/status")
+async def admin_set_ticket_status(tid: str, body: TicketStatusIn, _: dict = Depends(require_admin)):
+    res = await db.support_tickets.update_one({"ticket_id": tid}, {"$set": {"status": body.status, "updated_at": utcnow()}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return {"ok": True, "status": body.status}
 
 
 app.include_router(api)

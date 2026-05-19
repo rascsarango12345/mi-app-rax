@@ -70,7 +70,7 @@ export default function Splash() {
 
       <Animated.View style={[styles.taglineWrap, taglineStyle]}>
         <Text style={styles.poweredBy}>POWERED BY</Text>
-        <Text style={styles.author}>AlexSarango</Text>
+        <Text style={styles.rasc}>R · A · S · C</Text>
       </Animated.View>
     </View>
   );
@@ -105,16 +105,18 @@ const styles = StyleSheet.create({
   poweredBy: {
     color: Colors.textSecondary,
     fontSize: 11,
-    letterSpacing: 4,
+    letterSpacing: 6,
     fontWeight: "600",
   },
-  author: {
+  rasc: {
     color: Colors.electricBlue,
-    fontSize: 22,
-    fontWeight: "700",
-    marginTop: 6,
+    fontSize: 38,
+    fontWeight: "900",
+    marginTop: 10,
+    letterSpacing: 8,
+    fontFamily: Platform.select({ ios: "Courier-Bold", android: "monospace", default: "monospace" }),
     textShadowColor: Colors.glowBlue,
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 12,
+    textShadowRadius: 20,
   },
 });

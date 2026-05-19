@@ -16,15 +16,15 @@ const PLANS = [
   {
     id: "premium",
     name: "Premium",
-    price: "$9.99/mes",
+    price: "$5.99/mes",
     color: Colors.electricBlue,
-    perks: ["500 mensajes/día", "100 imágenes/día", "Voces premium", "Sin anuncios", "Soporte prioritario"],
+    perks: ["1,000 mensajes/día", "200 imágenes/día", "4 voces premium", "Sin anuncios", "Soporte prioritario"],
     featured: true,
   },
   {
     id: "pro",
     name: "Pro",
-    price: "$19.99/mes",
+    price: "$15.99/mes",
     color: Colors.neonGreen,
     perks: ["Ilimitado todo", "API privada", "Análisis avanzado", "Acceso anticipado", "Soporte 24/7"],
   },

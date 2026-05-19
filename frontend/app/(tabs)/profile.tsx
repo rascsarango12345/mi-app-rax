@@ -52,10 +52,16 @@ export default function Profile() {
           <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
         </TouchableOpacity>
 
+        <TouchableOpacity testID="btn-support" style={styles.row} onPress={() => router.push("/support")}>
+          <Ionicons name="headset-outline" size={20} color={Colors.electricBlue} />
+          <Text style={styles.rowText}>Soporte técnico</Text>
+          <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+        </TouchableOpacity>
+
         {user.is_admin && (
           <TouchableOpacity testID="btn-admin" style={styles.row} onPress={() => router.push("/admin")}>
             <Ionicons name="shield-checkmark-outline" size={20} color={Colors.electricBlue} />
-            <Text style={styles.rowText}>Panel de Administrador</Text>
+            <Text style={styles.rowText}>Panel Manager (RASC)</Text>
             <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
           </TouchableOpacity>
         )}
@@ -86,7 +92,7 @@ export default function Profile() {
           <View style={{ width: 20 }} />
         </TouchableOpacity>
 
-        <Text style={styles.footer}>RAX AI v1.0 · Powered by AlexSarango</Text>
+        <Text style={styles.footer}>RAX AI v1.1 · Powered by RASC · {new Date().toLocaleDateString("es")}</Text>
       </ScrollView>
     </SafeAreaView>
   );

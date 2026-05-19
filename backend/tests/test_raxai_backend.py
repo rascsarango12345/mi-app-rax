@@ -13,8 +13,8 @@ import requests
 BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://ai-chat-demo-26.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN_EMAIL = "admin@raxai.com"
-ADMIN_PASS = "RaxAI2026!"
+ADMIN_EMAIL = "rascsarango12345@gmail.com"
+ADMIN_PASS = "Rasc2026!RaxAI"
 
 
 # ---------- fixtures ----------
@@ -249,8 +249,9 @@ class TestAdmin:
         r = session.get(f"{API}/admin/stats", headers={"Authorization": f"Bearer {token}"}, timeout=30)
         assert r.status_code == 200
         d = r.json()
-        for key in ["total_users", "total_messages", "total_images", "blocked_users", "premium_users", "pro_users", "estimated_revenue_usd"]:
+        for key in ["total_users", "total_messages", "total_images", "blocked_users", "premium_users", "pro_users", "estimated_revenue_usd", "open_tickets", "today"]:
             assert key in d
+        assert d["today"] == "19 de mayo de 2026"
 
     def test_admin_endpoints_forbidden_for_non_admin(self, session, new_user):
         token, _, _, _ = new_user
@@ -298,3 +299,257 @@ class TestQuota:
         assert r.status_code == 200
         after = session.get(f"{API}/auth/me", headers=hdr).json()["messages_used"]
         assert after == before + 1
+
+
+# ---------- Module: theme (iteration 2) ----------
+class TestTheme:
+    def test_get_theme_public_no_auth(self, session):
+        r = session.get(f"{API}/theme", timeout=30)
+        assert r.status_code == 200
+        d = r.json()
+        for k in ["primary_color", "accent_color", "success_color", "background_color", "preset"]:
+            assert k in d
+
+    def test_admin_update_theme_persists(self, session, admin_token):
+        token, _ = admin_token
+        new_theme = {
+            "primary_color": "#FF00AA",
+            "accent_color": "#00FFAA",
+            "success_color": "#FFFF00",
+            "background_color": "#101010",
+            "preset": "test_pink",
+        }
+        r = session.put(
+            f"{API}/admin/theme",
+            json=new_theme,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["ok"] is True
+        # verify persistence via public endpoint
+        r2 = session.get(f"{API}/theme", timeout=30)
+        assert r2.status_code == 200
+        d = r2.json()
+        assert d["primary_color"] == "#FF00AA"
+        assert d["preset"] == "test_pink"
+        # restore default
+        session.put(
+            f"{API}/admin/theme",
+            json={
+                "primary_color": "#00E5FF",
+                "accent_color": "#7C4DFF",
+                "success_color": "#00FF66",
+                "background_color": "#050505",
+                "preset": "neon_blue",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+        )
+
+    def test_non_admin_cannot_set_theme(self, session, new_user):
+        token, _, _, _ = new_user
+        r = session.put(
+            f"{API}/admin/theme",
+            json={"primary_color": "#000000", "accent_color": "#000000",
+                  "success_color": "#000000", "background_color": "#000000", "preset": "hack"},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+        )
+        assert r.status_code == 403
+
+
+# ---------- Module: subscriptions (iteration 2) ----------
+class TestSubscriptions:
+    def test_admin_subscriptions_includes_revenue(self, session, admin_token, new_user):
+        admin_tok, _ = admin_token
+        _, target_user, _, _ = new_user
+        hdr = {"Authorization": f"Bearer {admin_tok}"}
+        # Upgrade target to premium to ensure at least one subscription besides admin (pro)
+        target_id = target_user["user_id"]
+        session.patch(f"{API}/admin/users/{target_id}/plan", json={"plan": "premium"}, headers=hdr, timeout=30)
+
+        r = session.get(f"{API}/admin/subscriptions", headers=hdr, timeout=30)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        for k in ["subscriptions", "total_active", "monthly_revenue_usd", "annual_projection_usd"]:
+            assert k in d
+        assert isinstance(d["subscriptions"], list)
+        assert d["total_active"] >= 1
+        # Verify pricing matches new prices ($5.99 / $15.99)
+        plans_seen = {s["plan"] for s in d["subscriptions"]}
+        for s in d["subscriptions"]:
+            assert "_id" not in s
+            assert "password_hash" not in s
+            if s["plan"] == "premium":
+                assert s["monthly_price_usd"] == 5.99
+            if s["plan"] == "pro":
+                assert s["monthly_price_usd"] == 15.99
+        # annual projection = monthly * 12
+        assert abs(d["annual_projection_usd"] - d["monthly_revenue_usd"] * 12) < 0.01
+        # cleanup
+        session.patch(f"{API}/admin/users/{target_id}/plan", json={"plan": "free"}, headers=hdr, timeout=30)
+
+    def test_non_admin_subscriptions_forbidden(self, session, new_user):
+        token, _, _, _ = new_user
+        r = session.get(f"{API}/admin/subscriptions", headers={"Authorization": f"Bearer {token}"}, timeout=30)
+        assert r.status_code == 403
+
+
+# ---------- Module: support tickets (iteration 2) ----------
+class TestSupportTickets:
+    def test_user_create_ticket_and_get(self, session, new_user):
+        token, _, _, _ = new_user
+        hdr = {"Authorization": f"Bearer {token}"}
+        r = session.post(
+            f"{API}/support/tickets",
+            json={"subject": "TEST issue de prueba", "message": "Hola, necesito ayuda con X"},
+            headers=hdr, timeout=30,
+        )
+        assert r.status_code == 200, r.text
+        tid = r.json()["ticket_id"]
+        assert r.json()["status"] == "open"
+
+        # User can list own tickets
+        rl = session.get(f"{API}/support/tickets", headers=hdr, timeout=30)
+        assert rl.status_code == 200
+        tickets = rl.json()
+        assert any(t["ticket_id"] == tid for t in tickets)
+
+        # Get ticket detail
+        rd = session.get(f"{API}/support/tickets/{tid}", headers=hdr, timeout=30)
+        assert rd.status_code == 200
+        body = rd.json()
+        assert body["ticket"]["ticket_id"] == tid
+        assert len(body["messages"]) >= 1
+        assert body["messages"][0]["sender_role"] == "user"
+
+    def test_user_reply_keeps_status_open(self, session, new_user):
+        token, _, _, _ = new_user
+        hdr = {"Authorization": f"Bearer {token}"}
+        tid = session.post(
+            f"{API}/support/tickets",
+            json={"subject": "TEST reply flow", "message": "msg 1"},
+            headers=hdr, timeout=30,
+        ).json()["ticket_id"]
+
+        rr = session.post(
+            f"{API}/support/tickets/{tid}/reply",
+            json={"message": "follow-up user"},
+            headers=hdr, timeout=30,
+        )
+        assert rr.status_code == 200
+        assert rr.json()["sender_role"] == "user"
+        # Status stays open
+        det = session.get(f"{API}/support/tickets/{tid}", headers=hdr, timeout=30).json()
+        assert det["ticket"]["status"] == "open"
+
+    def test_admin_reply_sets_answered_and_lists_all(self, session, admin_token, new_user):
+        admin_tok, _ = admin_token
+        u_tok, _, _, _ = new_user
+        hdr_u = {"Authorization": f"Bearer {u_tok}"}
+        hdr_a = {"Authorization": f"Bearer {admin_tok}"}
+
+        # User creates
+        tid = session.post(
+            f"{API}/support/tickets",
+            json={"subject": "TEST admin reply", "message": "user msg"},
+            headers=hdr_u, timeout=30,
+        ).json()["ticket_id"]
+
+        # Admin lists all (should include user's ticket)
+        all_list = session.get(f"{API}/support/tickets", headers=hdr_a, timeout=30).json()
+        assert any(t["ticket_id"] == tid for t in all_list)
+
+        # Admin replies
+        rr = session.post(
+            f"{API}/support/tickets/{tid}/reply",
+            json={"message": "admin response"},
+            headers=hdr_a, timeout=30,
+        )
+        assert rr.status_code == 200
+        assert rr.json()["sender_role"] == "admin"
+
+        # Status now answered
+        det = session.get(f"{API}/support/tickets/{tid}", headers=hdr_a, timeout=30).json()
+        assert det["ticket"]["status"] == "answered"
+
+        # Admin updates status to closed
+        rs = session.patch(
+            f"{API}/admin/support/tickets/{tid}/status",
+            json={"status": "closed"},
+            headers=hdr_a, timeout=30,
+        )
+        assert rs.status_code == 200
+        assert rs.json()["status"] == "closed"
+        det2 = session.get(f"{API}/support/tickets/{tid}", headers=hdr_a, timeout=30).json()
+        assert det2["ticket"]["status"] == "closed"
+
+    def test_other_user_cannot_access_ticket(self, session, new_user):
+        # Create ticket as new_user
+        token, _, _, _ = new_user
+        hdr = {"Authorization": f"Bearer {token}"}
+        tid = session.post(
+            f"{API}/support/tickets",
+            json={"subject": "TEST private", "message": "secret"},
+            headers=hdr, timeout=30,
+        ).json()["ticket_id"]
+
+        # Register another user
+        email2 = f"TEST_other_{uuid.uuid4().hex[:8]}@example.com"
+        reg = session.post(f"{API}/auth/register", json={"email": email2, "password": "Pass1234!"}, timeout=30).json()
+        other_tok = reg["token"]
+        r = session.get(
+            f"{API}/support/tickets/{tid}",
+            headers={"Authorization": f"Bearer {other_tok}"}, timeout=30,
+        )
+        assert r.status_code == 403
+
+    def test_non_admin_patch_status_forbidden(self, session, new_user):
+        token, _, _, _ = new_user
+        hdr = {"Authorization": f"Bearer {token}"}
+        tid = session.post(
+            f"{API}/support/tickets",
+            json={"subject": "TEST status forbidden", "message": "msg"},
+            headers=hdr, timeout=30,
+        ).json()["ticket_id"]
+        r = session.patch(
+            f"{API}/admin/support/tickets/{tid}/status",
+            json={"status": "closed"},
+            headers=hdr, timeout=30,
+        )
+        assert r.status_code == 403
+
+
+# ---------- Module: admin email allowlist (iteration 2) ----------
+class TestOwnerAdminAllowlist:
+    def test_admin_login_returns_pro_and_name_rasc(self, session):
+        r = session.post(f"{API}/auth/login", json={"email": "rascsarango12345@gmail.com", "password": "Rasc2026!RaxAI"}, timeout=30)
+        assert r.status_code == 200, r.text
+        u = r.json()["user"]
+        assert u["is_admin"] is True
+        assert u["plan"] == "pro"
+        assert u["name"] == "RASC"
+        assert u["email"] == "rascsarango12345@gmail.com"
+
+    def test_new_registered_email_is_not_admin(self, session):
+        email = f"TEST_random_{uuid.uuid4().hex[:8]}@example.com"
+        r = session.post(f"{API}/auth/register", json={"email": email, "password": "Pass1234!"}, timeout=30)
+        assert r.status_code == 200
+        assert r.json()["user"]["is_admin"] is False
+
+
+# ---------- Module: chat date awareness (iteration 2) ----------
+class TestChatDate:
+    def test_chat_mentions_may_19_2026(self, session, new_user):
+        token, _, _, _ = new_user
+        hdr = {"Authorization": f"Bearer {token}"}
+        r = session.post(
+            f"{API}/chat/send",
+            json={"text": "¿Qué fecha es hoy? Responde solo con la fecha."},
+            headers=hdr,
+            timeout=90,
+        )
+        assert r.status_code == 200, r.text
+        content = r.json()["message"]["content"].lower()
+        assert ("19" in content and ("mayo" in content or "may" in content) and "2026" in content), f"Unexpected: {content}"
