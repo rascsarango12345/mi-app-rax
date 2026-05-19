@@ -36,50 +36,36 @@ export default function TabsLayout() {
         },
         tabBarActiveTintColor: Colors.electricBlue,
         tabBarInactiveTintColor: Colors.textMuted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "600" },
       }}
     >
       <Tabs.Screen
         name="chat"
-        options={{
-          title: t("tab_chat"),
-          tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles-outline" color={color} size={size} />,
-        }}
+        options={{ title: t("tab_chat"), tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles-outline" color={color} size={size} /> }}
       />
       <Tabs.Screen
         name="image"
-        options={{
-          title: t("tab_image"),
-          tabBarIcon: ({ color, size }) => <Ionicons name="image-outline" color={color} size={size} />,
-        }}
+        options={{ title: t("tab_image"), tabBarIcon: ({ color, size }) => <Ionicons name="image-outline" color={color} size={size} /> }}
+      />
+      <Tabs.Screen
+        name="studio"
+        options={{ title: t("tab_studio"), tabBarIcon: ({ color, size }) => <Ionicons name="sparkles" color={color} size={size + 2} /> }}
       />
       <Tabs.Screen
         name="voice"
-        options={{
-          title: t("tab_voice"),
-          tabBarIcon: ({ color, size }) => <Ionicons name="mic-outline" color={color} size={size} />,
-        }}
+        options={{ title: t("tab_voice"), tabBarIcon: ({ color, size }) => <Ionicons name="mic-outline" color={color} size={size} /> }}
       />
       <Tabs.Screen
         name="creator"
-        options={{
-          title: t("tab_creator"),
-          tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" color={color} size={size} />,
-        }}
+        options={{ title: t("tab_creator"), tabBarIcon: ({ color, size }) => <Ionicons name="color-wand-outline" color={color} size={size} /> }}
       />
       <Tabs.Screen
         name="game"
-        options={{
-          title: t("tab_game"),
-          tabBarIcon: ({ color, size }) => <Ionicons name="game-controller-outline" color={color} size={size} />,
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="profile"
-        options={{
-          title: t("tab_profile"),
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" color={color} size={size} />,
-        }}
+        options={{ title: t("tab_profile"), tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" color={color} size={size} /> }}
       />
     </Tabs>
   );

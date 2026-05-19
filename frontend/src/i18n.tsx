@@ -99,6 +99,70 @@ const T = {
   yes: { es: "Sí", en: "Yes", hi: "हाँ", zh: "是", ru: "Да" },
   no: { es: "No", en: "No", hi: "नहीं", zh: "否", ru: "Нет" },
   ok: { es: "OK", en: "OK", hi: "ठीक है", zh: "好", ru: "ОК" },
+  share: { es: "Compartir", en: "Share", hi: "साझा करें", zh: "分享", ru: "Поделиться" },
+  copy: { es: "Copiar", en: "Copy", hi: "कॉपी", zh: "复制", ru: "Копировать" },
+  copied: { es: "Copiado", en: "Copied", hi: "कॉपी हो गया", zh: "已复制", ru: "Скопировано" },
+  loading: { es: "Cargando...", en: "Loading...", hi: "लोड हो रहा है...", zh: "加载中...", ru: "Загрузка..." },
+
+  // Studio (Hub)
+  tab_studio: { es: "Estudio", en: "Studio", hi: "स्टूडियो", zh: "工作室", ru: "Студия" },
+  studio_title: { es: "Estudio Mágico RAX", en: "RAX Magic Studio", hi: "RAX मैजिक स्टूडियो", zh: "RAX 魔法工作室", ru: "RAX Магическая Студия" },
+  studio_sub: { es: "Herramientas exclusivas con IA. Solo en RAX AI.", en: "Exclusive AI tools. Only on RAX AI.", hi: "विशेष AI टूल। केवल RAX AI पर।", zh: "独家 AI 工具。仅在 RAX AI 上。", ru: "Эксклюзивные AI-инструменты. Только в RAX AI." },
+
+  // Cámara Mágica (AR Lens)
+  lens_title: { es: "📸 Cámara Mágica", en: "📸 Magic Lens", hi: "📸 मैजिक लेंस", zh: "📸 魔法镜头", ru: "📸 Волшебная линза" },
+  lens_sub: { es: "Apunta a cualquier cosa y descúbrelo todo", en: "Point at anything and discover everything", hi: "किसी भी चीज़ पर इंगित करें और सब कुछ जानें", zh: "对准任何物体，发现一切", ru: "Наведите на что угодно и узнайте всё" },
+  lens_card_desc: { es: "Escanea objetos, plantas, comida, ropa, animales y descubre qué son al instante.", en: "Scan objects, plants, food, clothes, animals and discover what they are instantly.", hi: "वस्तुओं, पौधों, भोजन, कपड़ों को स्कैन करें", zh: "扫描物体、植物、食物、衣服并立即识别。", ru: "Сканируйте объекты, растения, еду, одежду." },
+  lens_take_photo: { es: "Tomar foto", en: "Take photo", hi: "फोटो लें", zh: "拍照", ru: "Сделать фото" },
+  lens_pick_gallery: { es: "Elegir de galería", en: "Pick from gallery", hi: "गैलरी से चुनें", zh: "从相册选择", ru: "Выбрать из галереи" },
+  lens_analyzing: { es: "Analizando con magia IA...", en: "Analyzing with AI magic...", hi: "AI जादू से विश्लेषण कर रहा है...", zh: "AI 魔法分析中...", ru: "Анализ с AI магией..." },
+  lens_scan_again: { es: "Escanear otro", en: "Scan another", hi: "दूसरा स्कैन करें", zh: "扫描另一个", ru: "Сканировать другое" },
+
+  // Roast
+  roast_title: { es: "🔥 Modo Roast", en: "🔥 Roast Mode", hi: "🔥 रोस्ट मोड", zh: "🔥 吐槽模式", ru: "🔥 Режим Жарки" },
+  roast_sub: { es: "La IA más despiadada... ¡con humor!", en: "The most savage AI... with humor!", hi: "सबसे क्रूर AI... हास्य के साथ!", zh: "最狠的AI...带着幽默！", ru: "Самый беспощадный AI... с юмором!" },
+  roast_card_desc: { es: "Sube tu foto o la de un amigo y deja que RAX te roastee con humor inteligente.", en: "Upload your photo or a friend's and let RAX roast you with smart humor.", hi: "अपनी या किसी मित्र की फ़ोटो अपलोड करें", zh: "上传你或朋友的照片让 RAX 吐槽你。", ru: "Загрузите фото и позвольте RAX весело подшутить." },
+  roast_intensity: { es: "Intensidad", en: "Intensity", hi: "तीव्रता", zh: "强度", ru: "Интенсивность" },
+  roast_soft: { es: "Suave", en: "Soft", hi: "हल्का", zh: "温和", ru: "Мягко" },
+  roast_medium: { es: "Medio", en: "Medium", hi: "मध्यम", zh: "中等", ru: "Средне" },
+  roast_brutal: { es: "Brutal", en: "Brutal", hi: "क्रूर", zh: "残酷", ru: "Жёстко" },
+  roast_generate: { es: "Generar Roast 🔥", en: "Generate Roast 🔥", hi: "रोस्ट जनरेट करें 🔥", zh: "生成吐槽 🔥", ru: "Создать Жарку 🔥" },
+  roast_generating: { es: "Preparando el roast...", en: "Preparing the roast...", hi: "रोस्ट तैयार कर रहा है...", zh: "准备吐槽中...", ru: "Готовим жарку..." },
+  roast_again: { es: "Roastear otro", en: "Roast another", hi: "दूसरा रोस्ट करें", zh: "再吐槽一个", ru: "Жарить ещё" },
+
+  // Journal
+  journal_title: { es: "🌙 Diario Inteligente", en: "🌙 Smart Journal", hi: "🌙 स्मार्ट डायरी", zh: "🌙 智能日记", ru: "🌙 Умный дневник" },
+  journal_sub: { es: "Tu mejor amigo IA que te recuerda y entiende", en: "Your AI best friend that remembers and understands you", hi: "आपका AI सबसे अच्छा दोस्त", zh: "记得并理解你的 AI 最佳朋友", ru: "Ваш лучший AI-друг, который помнит и понимает вас" },
+  journal_card_desc: { es: "Escribe cómo te sientes. La IA recuerda todo y te da insights personalizados.", en: "Write how you feel. AI remembers everything and gives you personalized insights.", hi: "लिखें कि आप कैसा महसूस करते हैं", zh: "写下你的感受。AI 记得一切。", ru: "Напишите, что чувствуете. AI помнит всё." },
+  journal_today_question: { es: "¿Cómo estás hoy?", en: "How are you today?", hi: "आज आप कैसे हैं?", zh: "你今天怎么样？", ru: "Как вы сегодня?" },
+  journal_mood: { es: "Tu estado de ánimo", en: "Your mood", hi: "आपका मूड", zh: "你的心情", ru: "Ваше настроение" },
+  journal_placeholder: { es: "Cuéntale a RAX cómo va tu día, qué te emociona, qué te preocupa...", en: "Tell RAX about your day, what excites you, what worries you...", hi: "RAX को अपने दिन के बारे में बताएं...", zh: "告诉 RAX 你的一天...", ru: "Расскажите RAX о своём дне..." },
+  journal_save: { es: "Guardar entrada", en: "Save entry", hi: "एंट्री सेव करें", zh: "保存条目", ru: "Сохранить запись" },
+  journal_history: { es: "Historial", en: "History", hi: "इतिहास", zh: "历史", ru: "История" },
+  journal_insights: { es: "Insights de RAX", en: "RAX Insights", hi: "RAX अंतर्दृष्टि", zh: "RAX 洞察", ru: "Инсайты RAX" },
+  journal_empty: { es: "Aún no tienes entradas. Empieza tu primer entrada de diario hoy ✨", en: "No entries yet. Start your first journal entry today ✨", hi: "अभी तक कोई एंट्री नहीं है ✨", zh: "还没有条目。今天开始你的第一篇 ✨", ru: "Записей пока нет. Начните сегодня ✨" },
+  mood_happy: { es: "Feliz 😊", en: "Happy 😊", hi: "खुश 😊", zh: "开心 😊", ru: "Счастливый 😊" },
+  mood_sad: { es: "Triste 😢", en: "Sad 😢", hi: "उदास 😢", zh: "难过 😢", ru: "Грустный 😢" },
+  mood_anxious: { es: "Ansioso 😰", en: "Anxious 😰", hi: "चिंतित 😰", zh: "焦虑 😰", ru: "Тревожный 😰" },
+  mood_neutral: { es: "Normal 😐", en: "Neutral 😐", hi: "सामान्य 😐", zh: "一般 😐", ru: "Обычный 😐" },
+  mood_motivated: { es: "Motivado 💪", en: "Motivated 💪", hi: "प्रेरित 💪", zh: "充满动力 💪", ru: "Мотивирован 💪" },
+  mood_angry: { es: "Enojado 😡", en: "Angry 😡", hi: "गुस्सा 😡", zh: "生气 😡", ru: "Злой 😡" },
+  mood_grateful: { es: "Agradecido 🙏", en: "Grateful 🙏", hi: "आभारी 🙏", zh: "感恩 🙏", ru: "Благодарный 🙏" },
+
+  // Shopper
+  shopper_title: { es: "🛍️ Personal Shopper IA", en: "🛍️ AI Personal Shopper", hi: "🛍️ AI पर्सनल शॉपर", zh: "🛍️ AI 个人购物助手", ru: "🛍️ AI Личный шопер" },
+  shopper_sub: { es: "Encuentra los mejores productos para ti", en: "Find the best products for you", hi: "अपने लिए सर्वोत्तम उत्पाद खोजें", zh: "为您找到最好的产品", ru: "Найдите лучшие продукты для вас" },
+  shopper_card_desc: { es: "Describe qué buscas o sube una foto. La IA encuentra los mejores productos.", en: "Describe what you want or upload a photo. AI finds the best products.", hi: "बताएं कि आप क्या चाहते हैं या फोटो अपलोड करें।", zh: "描述您想要的或上传照片。", ru: "Опишите, что хотите, или загрузите фото." },
+  shopper_query_placeholder: { es: "Ej: Audífonos inalámbricos con buena batería bajo $100", en: "E.g. Wireless headphones with good battery under $100", hi: "उदा: $100 के तहत वायरलेस हेडफ़ोन", zh: "例：100美元以下带电池良好的无线耳机", ru: "Напр: беспроводные наушники до $100" },
+  shopper_budget: { es: "Presupuesto (USD)", en: "Budget (USD)", hi: "बजट (USD)", zh: "预算 (USD)", ru: "Бюджет (USD)" },
+  shopper_search: { es: "Buscar productos 🔎", en: "Search products 🔎", hi: "उत्पाद खोजें 🔎", zh: "搜索产品 🔎", ru: "Найти продукты 🔎" },
+  shopper_searching: { es: "Buscando los mejores productos...", en: "Finding the best products...", hi: "सर्वोत्तम उत्पाद ढूंढ रहा है...", zh: "正在寻找最佳产品...", ru: "Ищем лучшие продукты..." },
+  shopper_search_again: { es: "Nueva búsqueda", en: "New search", hi: "नई खोज", zh: "新搜索", ru: "Новый поиск" },
+
+  // Limits
+  daily_limit_label: { es: "Hoy", en: "Today", hi: "आज", zh: "今天", ru: "Сегодня" },
+  limit_reached: { es: "Has alcanzado el límite diario", en: "You've reached the daily limit", hi: "दैनिक सीमा पूरी हो गई", zh: "已达每日限额", ru: "Достигнут дневной лимит" },
+  upgrade_for_more: { es: "Mejora tu plan para más", en: "Upgrade plan for more", hi: "अधिक के लिए प्लान अपग्रेड करें", zh: "升级以获得更多", ru: "Улучшите план для большего" },
 };
 
 export type TKey = keyof typeof T;

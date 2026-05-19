@@ -1715,6 +1715,248 @@ async def admin_payments(_: dict = Depends(require_admin)):
 app.include_router(api)
 
 
+# ============================================================
+# NEW FEATURES: Cámara Mágica, Diario Inteligente, Roast, Personal Shopper
+# ============================================================
+new_features = APIRouter(prefix="/api")
+# Daily-reset feature quotas (free=3/day, premium=30/day, pro=unlimited per feature)
+FEATURE_DAILY_LIMITS = {"free": 3, "premium": 30, "pro": 99999}
+
+
+async def check_feature_quota(user: dict, feature: str):
+    """Generic daily-reset quota for new features (lens, roast, journal, shopper)."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    key_date = f"{feature}_date"
+    key_used = f"{feature}_today"
+    last_date = user.get(key_date)
+    used = user.get(key_used, 0) if last_date == today else 0
+    limit = FEATURE_DAILY_LIMITS.get(user.get("plan", "free"), 3)
+    if used >= limit:
+        raise HTTPException(status_code=402, detail=f"Límite diario de {limit} alcanzado para {feature}. Mejora tu plan.")
+    return today, used
+
+
+async def bump_feature_quota(user_id: str, feature: str, today: str, used: int):
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {f"{feature}_date": today, f"{feature}_today": used + 1}},
+    )
+
+
+# ---------- 📸 Cámara Mágica (AR Lens) ----------
+class LensIn(BaseModel):
+    image_base64: str
+    locale: str = "es"
+
+
+@new_features.post("/lens/scan")
+async def lens_scan(body: LensIn, user: dict = Depends(get_current_user)):
+    today, used = await check_feature_quota(user, "lens")
+    if not body.image_base64:
+        raise HTTPException(status_code=400, detail="Imagen requerida")
+    lang_names = {"es": "Spanish", "en": "English", "hi": "Hindi", "zh": "Chinese", "ru": "Russian"}
+    lang = lang_names.get((body.locale or "es").lower().split("-")[0], "Spanish")
+    system = (
+        f"Eres RAX Lens, el escáner mágico de objetos del mundo. Cuando recibas una imagen, identifica al objeto "
+        f"principal y devuelve información estructurada en {lang}. SIEMPRE responde en formato Markdown con estas secciones (omite las que no apliquen):\n\n"
+        "## 🔍 ¿Qué es?\n[Nombre del objeto en una línea]\n\n"
+        "## 📖 Descripción\n[2-3 oraciones explicando]\n\n"
+        "## 💰 Precio estimado\n[rango USD]\n\n"
+        "## 🌍 Cómo se llama en otros idiomas\n- 🇺🇸 English: ...\n- 🇪🇸 Español: ...\n- 🇫🇷 Français: ...\n- 🇨🇳 中文: ...\n- 🇯🇵 日本語: ...\n\n"
+        "## 💡 Datos curiosos\n- ...\n- ...\n\n"
+        "## ✅ Recomendaciones / Cuidados / Cómo usarlo\n[según aplique]\n\n"
+        "Si es comida, agrega recetas. Si es planta, cuidados. Si es ropa/marca, dónde comprarla. Si es animal, info de la especie."
+    )
+    b64 = body.image_base64.split(",")[-1] if "," in body.image_base64 else body.image_base64
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"lens_{user['user_id']}", system_message=system)
+    chat.with_model("anthropic", "claude-sonnet-4-5-20250929")
+    msg = UserMessage(text="Analiza esta imagen como RAX Lens.", file_contents=[ImageContent(image_base64=b64)])
+    try:
+        result = await chat.send_message(msg)
+    except Exception as e:
+        logger.error(f"Lens error: {e}")
+        raise HTTPException(status_code=500, detail="Error al analizar imagen")
+    await bump_feature_quota(user["user_id"], "lens", today, used)
+    return {"result": result, "used_today": used + 1, "limit": FEATURE_DAILY_LIMITS.get(user.get("plan", "free"), 3)}
+
+
+# ---------- 🔥 Modo Roast ----------
+class RoastIn(BaseModel):
+    image_base64: str
+    intensity: Literal["suave", "medio", "brutal"] = "medio"
+    locale: str = "es"
+
+
+@new_features.post("/roast")
+async def roast_generate(body: RoastIn, user: dict = Depends(get_current_user)):
+    today, used = await check_feature_quota(user, "roast")
+    if not body.image_base64:
+        raise HTTPException(status_code=400, detail="Imagen requerida")
+    lang_names = {"es": "Spanish", "en": "English", "hi": "Hindi", "zh": "Chinese", "ru": "Russian"}
+    lang = lang_names.get((body.locale or "es").lower().split("-")[0], "Spanish")
+    intensity_map = {
+        "suave": "humor amable y bromas tipo papá, sin ofender",
+        "medio": "humor más mordaz pero respetuoso, tipo amigo cercano roasteándote",
+        "brutal": "humor brutal pero ingenioso, sin discriminar por raza/género/religión",
+    }
+    system = (
+        f"Eres RAX Roast Master, el comediante más ingenioso del mundo. Cuando recibas una foto de una persona, "
+        f"escribe un ROAST gracioso, original y CREATIVO en {lang}. Nivel: {intensity_map.get(body.intensity, 'medio')}. "
+        "REGLAS: 5-7 líneas máximo, debe ser GRACIOSO, observa detalles (ropa, pose, fondo, expresión), usa metáforas creativas, "
+        "termina con un cumplido sarcástico que sea casi un halago. Si es una foto sin persona, roastea el objeto/escena. "
+        "NUNCA insultos sobre peso, raza, género, orientación, religión o discapacidad. Solo cosas circunstanciales. "
+        "Usa emojis con gracia (1-2 máximo)."
+    )
+    b64 = body.image_base64.split(",")[-1] if "," in body.image_base64 else body.image_base64
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"roast_{user['user_id']}", system_message=system)
+    chat.with_model("anthropic", "claude-sonnet-4-5-20250929")
+    msg = UserMessage(text=f"Roastea esta imagen con intensidad {body.intensity}.", file_contents=[ImageContent(image_base64=b64)])
+    try:
+        result = await chat.send_message(msg)
+    except Exception as e:
+        logger.error(f"Roast error: {e}")
+        raise HTTPException(status_code=500, detail="Error generando roast")
+    await bump_feature_quota(user["user_id"], "roast", today, used)
+    return {"roast": result, "intensity": body.intensity, "used_today": used + 1, "limit": FEATURE_DAILY_LIMITS.get(user.get("plan", "free"), 3)}
+
+
+# ---------- 🌙 Diario Inteligente ----------
+class JournalEntryIn(BaseModel):
+    content: str
+    mood: Literal["feliz", "triste", "ansioso", "neutral", "motivado", "enojado", "agradecido"] = "neutral"
+    locale: str = "es"
+
+
+@new_features.post("/journal/entry")
+async def journal_add(body: JournalEntryIn, user: dict = Depends(get_current_user)):
+    if not body.content or len(body.content.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Escribe al menos 3 caracteres")
+    entry_id = f"journ_{uuid.uuid4().hex[:14]}"
+    now = utcnow()
+    today = now.strftime("%Y-%m-%d")
+    # Generate AI insight on this entry
+    lang_names = {"es": "Spanish", "en": "English", "hi": "Hindi", "zh": "Chinese", "ru": "Russian"}
+    lang = lang_names.get((body.locale or "es").lower().split("-")[0], "Spanish")
+    system = (
+        f"Eres RAX, el mejor amigo IA del usuario. Te acaba de compartir una entrada de su diario personal. "
+        f"Responde en {lang} con: una reflexión empática (2-3 oraciones), 1 pregunta poderosa para profundizar, "
+        f"y 1 acción concreta que pueda tomar hoy. Tono cálido, cercano, no robótico. Máximo 5-6 líneas total."
+    )
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"journal_{user['user_id']}", system_message=system)
+    chat.with_model("anthropic", "claude-sonnet-4-5-20250929")
+    try:
+        insight = await chat.send_message(UserMessage(text=f"Estado de ánimo: {body.mood}\nEntrada: {body.content}"))
+    except Exception:
+        insight = "Gracias por compartir. Sigue escribiendo, te ayuda a procesar y crecer. 💙"
+    doc = {
+        "entry_id": entry_id,
+        "user_id": user["user_id"],
+        "content": body.content.strip(),
+        "mood": body.mood,
+        "ai_insight": insight,
+        "date": today,
+        "created_at": now,
+    }
+    await db.journal_entries.insert_one(doc)
+    return {**doc, "_id": str(doc.get("_id", "")), "created_at": iso(now)}
+
+
+@new_features.get("/journal/history")
+async def journal_history(user: dict = Depends(get_current_user), limit: int = 30):
+    entries = await db.journal_entries.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    return [
+        {**e, "created_at": iso(e["created_at"]) if isinstance(e.get("created_at"), datetime) else e.get("created_at")}
+        for e in entries
+    ]
+
+
+@new_features.delete("/journal/entry/{eid}")
+async def journal_delete(eid: str, user: dict = Depends(get_current_user)):
+    await db.journal_entries.delete_one({"entry_id": eid, "user_id": user["user_id"]})
+    return {"ok": True}
+
+
+@new_features.get("/journal/insights")
+async def journal_insights(user: dict = Depends(get_current_user)):
+    """Weekly mood + patterns analysis"""
+    entries = await db.journal_entries.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    if not entries:
+        return {"summary": "Aún no tienes entradas. Empieza hoy ✨", "mood_counts": {}, "total": 0}
+    mood_counts: dict = {}
+    for e in entries:
+        m = e.get("mood", "neutral")
+        mood_counts[m] = mood_counts.get(m, 0) + 1
+    if len(entries) < 3:
+        return {"summary": f"Llevas {len(entries)} entrada(s). Sigue así, las primeras semanas son las más importantes.", "mood_counts": mood_counts, "total": len(entries)}
+    # Build prompt with last 20 entries
+    recent = entries[:20]
+    digest = "\n\n".join([f"[{e.get('date')} · {e.get('mood')}] {e.get('content','')[:200]}" for e in recent])
+    system = (
+        "Eres RAX, mejor amigo IA. Analiza estas entradas del diario del usuario y entrega un análisis profundo "
+        "en español con: 1) Patrones emocionales observados, 2) Logros que detectaste, 3) Áreas a cuidar, "
+        "4) 3 consejos personalizados accionables. Tono cálido, empático, en formato Markdown. Máx 12 líneas."
+    )
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"journal_insights_{user['user_id']}", system_message=system)
+    chat.with_model("anthropic", "claude-sonnet-4-5-20250929")
+    try:
+        summary = await chat.send_message(UserMessage(text=digest))
+    except Exception:
+        summary = "Sigue escribiendo. Cada palabra te acerca a entenderte mejor. 💙"
+    return {"summary": summary, "mood_counts": mood_counts, "total": len(entries)}
+
+
+# ---------- 🛍️ AI Personal Shopper ----------
+class ShopperIn(BaseModel):
+    query: str
+    budget_usd: Optional[float] = None
+    image_base64: Optional[str] = None
+    locale: str = "es"
+
+
+@new_features.post("/shopper/recommend")
+async def shopper_recommend(body: ShopperIn, user: dict = Depends(get_current_user)):
+    today, used = await check_feature_quota(user, "shopper")
+    if not body.query and not body.image_base64:
+        raise HTTPException(status_code=400, detail="Describe lo que buscas o sube una foto")
+
+    lang_names = {"es": "Spanish", "en": "English", "hi": "Hindi", "zh": "Chinese", "ru": "Russian"}
+    lang = lang_names.get((body.locale or "es").lower().split("-")[0], "Spanish")
+
+    # Web search for products
+    search_query = body.query or "trending product"
+    web_results = do_web_search(search_query + " buy review", max_results=6)
+
+    budget_text = f"Presupuesto del usuario: ${body.budget_usd} USD\n" if body.budget_usd else ""
+    system = (
+        f"Eres RAX Shopper, asesor de compras de elite. Recomienda 3-5 productos para el usuario en {lang}. "
+        f"Para cada producto entrega: nombre, por qué le conviene, precio aproximado USD, dónde comprarlo (Amazon, MercadoLibre, AliExpress, tienda oficial). "
+        f"Devuelve el resultado en formato Markdown con secciones y emojis. Si te dieron presupuesto, RESPÉTALO. "
+        f"Si te muestran una imagen, analiza qué buscan (similar a esto, complementario, accesorio). "
+        f"Sé honesto si algo es mala compra. Al final agrega un veredicto: '🏆 Mi recomendación TOP'.\n\n"
+        f"{budget_text}"
+        f"Información de búsqueda web reciente:\n{web_results}"
+    )
+    file_contents = None
+    if body.image_base64:
+        b64 = body.image_base64.split(",")[-1] if "," in body.image_base64 else body.image_base64
+        file_contents = [ImageContent(image_base64=b64)]
+
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"shopper_{user['user_id']}", system_message=system)
+    chat.with_model("anthropic", "claude-sonnet-4-5-20250929")
+    msg = UserMessage(text=body.query or "Recomiéndame productos basados en esta imagen.", file_contents=file_contents)
+    try:
+        result = await chat.send_message(msg)
+    except Exception as e:
+        logger.error(f"Shopper error: {e}")
+        raise HTTPException(status_code=500, detail="Error generando recomendaciones")
+    await bump_feature_quota(user["user_id"], "shopper", today, used)
+    return {"recommendations": result, "used_today": used + 1, "limit": FEATURE_DAILY_LIMITS.get(user.get("plan", "free"), 3)}
+
+
+# Register new features router
+app.include_router(new_features)
+
+
 @app.on_event("shutdown")
 async def shutdown():
     mongo_client.close()

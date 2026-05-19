@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "RAX AI",
+    "slug": "rax-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
-    "userInterfaceStyle": "automatic",
+    "scheme": "raxai",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "web": {
       "bundler": "metro",
@@ -21,7 +21,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000"
+          "backgroundColor": "#000000"
         }
       ],
       [
@@ -33,24 +33,29 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Permite seleccionar imágenes para analizar con RAX AI.",
-          "cameraPermission": "Permite capturar fotos para analizar con RAX AI."
+          "photosPermission": "Selecciona imágenes para analizar con RAX AI.",
+          "cameraPermission": "Captura fotos para analizar con RAX AI."
         }
       ],
       "expo-localization"
     ],
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.sarangocabrera.raxai",
+      "buildNumber": "1",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "RAX AI usa el micrófono para transcribir tu voz.",
         "NSPhotoLibraryUsageDescription": "Selecciona imágenes para que RAX AI las analice.",
-        "NSCameraUsageDescription": "Captura fotos para que RAX AI las analice."
+        "NSCameraUsageDescription": "Captura fotos para que RAX AI las analice.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
+      "package": "com.sarangocabrera.raxai",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000"
+        "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
