@@ -1,0 +1,112 @@
+{
+  "theme": "dark",
+  "archetype": "Archetype 7: Electric & Neon",
+  "archetype_reasoning": "The user explicitly requested a 'Futuristic, Minimalist, Premium' design with 'neon green, blue, and black' colors. Archetype 7 perfectly aligns with this aesthetic, providing a deep space void background with electric cyan and neon green accents to convey an advanced, AI-driven experience.",
+  "colors": {
+    "background": {
+      "main": "#050505",
+      "surface": "#121212",
+      "surface_elevated": "#1A1A1A"
+    },
+    "primary": {
+      "neon_green": "#00FF66",
+      "electric_blue": "#00E5FF",
+      "glow_green": "rgba(0, 255, 102, 0.5)",
+      "glow_blue": "rgba(0, 229, 255, 0.5)"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A0A0A0",
+      "muted": "#666666",
+      "inverse": "#000000"
+    },
+    "border": {
+      "default": "#222222",
+      "active": "#00FF66"
+    },
+    "status": {
+      "error": "#FF3366",
+      "success": "#00FF66",
+      "warning": "#FFB800"
+    }
+  },
+  "typography": {
+    "font_family": {
+      "heading": "Outfit",
+      "body": "Inter",
+      "mono": "JetBrains Mono"
+    },
+    "sizes": {
+      "h1": { "fontSize": 48, "lineHeight": 56, "letterSpacing": -1.5, "fontWeight": "800" },
+      "h2": { "fontSize": 32, "lineHeight": 40, "letterSpacing": -1, "fontWeight": "700" },
+      "h3": { "fontSize": 24, "lineHeight": 32, "letterSpacing": -0.5, "fontWeight": "600" },
+      "body_lg": { "fontSize": 18, "lineHeight": 28, "fontWeight": "400" },
+      "body": { "fontSize": 16, "lineHeight": 24, "fontWeight": "400" },
+      "small": { "fontSize": 14, "lineHeight": 20, "fontWeight": "400" },
+      "caption": { "fontSize": 12, "lineHeight": 16, "letterSpacing": 1, "textTransform": "uppercase" }
+    }
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "xxl": 48
+  },
+  "border_radius": {
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "pill": 9999
+  },
+  "layout_and_surfaces": {
+    "card_style": "Neumorphic glass blend. Backgrounds should be very dark gray (#121212) with a 1px subtle border (rgba(255,255,255,0.05)). Active states should feature a neon green or blue 1px border with a soft drop shadow (glow) effect.",
+    "input_style": "Minimalist. Floating labels or simple placeholders. Underline focus or fully rounded borders with 1px neon border on focus. Background #1A1A1A.",
+    "button_primary": "Solid neon green (#00FF66) with deep black text (#000000). Pill-shaped, bold text. Soft green glow on press.",
+    "button_secondary": "Transparent background with 1px electric blue (#00E5FF) border and electric blue text. Pill-shaped."
+  },
+  "animations": {
+    "engine": "react-native-reanimated",
+    "splash_intro": "Epic scaling and fade-in. The 'AI CRAZY' logo should scale up from 0.8 to 1 with a slight bounce, while neon glows pulse in the background. 'Powered by AlexSarango' fades in from bottom after 1 second.",
+    "page_transition": "Fade and slight slide-up (translateY: 20 -> 0) to feel snappy and modern.",
+    "buttons": "Scale down to 0.95 on press-in using Reanimated, scale back to 1 on release.",
+    "chat_bubbles": "Slide in from bottom and fade in. Staggered effect for lists."
+  },
+  "components": {
+    "chat_bubble_user": "Right-aligned, #1A1A1A background, rounded corners (except bottom-right), white text. 1px solid #333 border.",
+    "chat_bubble_ai": "Left-aligned, fully black (#000000) background, rounded corners (except bottom-left), white text. 1px solid #00E5FF (electric blue) with subtle inner glow.",
+    "premium_card": "Deep gradient background (black to dark blue), with glowing #00FF66 borders. Use the 'premium_bg' image as a subtle absolute positioned background layer.",
+    "style_selector_pill": "Horizontal ScrollView of chips. Inactive: #1A1A1A background. Active: #00FF66 background, black text."
+  },
+  "media_and_images": {
+    "splash_bg": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/0561da6c-954a-485a-9808-cb1716b0bac9/images/8ccfce982401bd1bc609528b6e89664f57d4ae8c1246477dc542260b6b416948.png",
+      "description": "Futuristic deep black background with glowing light streaks. Use for Splash screen."
+    },
+    "ai_avatar": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/0561da6c-954a-485a-9808-cb1716b0bac9/images/a5cf79aaef977a8dc8b0671c67c8e3c8328755066962d2aa46c5258cd7a8af68.png",
+      "description": "Glowing 3D AI core icon. Use for the AI profile picture in chat and main intro logo."
+    },
+    "premium_bg": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/0561da6c-954a-485a-9808-cb1716b0bac9/images/ddedc06338b67cfc278d7ba1f124ff96e81b0e57f7ea0a00b27bd1ce057719bf.png",
+      "description": "Abstract dark metallic surface. Use as a background for the Premium Subscription upgrade screen."
+    },
+    "cyber_city_bg": {
+      "url": "https://images.unsplash.com/photo-1672872476232-da16b45c9001?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHwzfHxmdXR1cmlzdGljJTIwbmVvbiUyMGN5YmVyJTIwdGVjaG5vbG9neXxlbnwwfHx8fDE3NzkxNjkzMTV8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Futuristic city neon lights. Good for the AI 'Image Generation' category card background."
+    },
+    "abstract_blue": {
+      "url": "https://images.pexels.com/photos/12537428/pexels-photo-12537428.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Intricate blue abstract pattern. Use for the File Analysis / Content Creator card."
+    }
+  },
+  "implementation_instructions": {
+    "framework": "React Native Expo",
+    "styling": "Use StyleSheet or NativeWind (Tailwind for Expo) if configured. Adhere strictly to the black/neon color palette.",
+    "testing_ids": "Ensure all TouchableOpacity, TextInput, and Button components have a 'testID' (React Native equivalent of data-testid) in kebab-case, e.g., testID='login-submit-button'.",
+    "navigation": "Use React Navigation. Ensure transition animations are smooth. Hide header on Splash, Login, and Auth screens.",
+    "icons": "Use @expo/vector-icons (Ionicons or Feather). Preferred stroke icons over filled to match the minimalist futuristic vibe."
+  }
+}
