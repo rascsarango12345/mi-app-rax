@@ -152,7 +152,6 @@ VOICE_MAP = {
     "jennifer":  "shimmer",  # Female bright
     "alexander": "onyx",     # Male deep
     "steven":    "echo",     # Male clear
-    "rasc":      "fable",    # User clone (using OpenAI 'fable' as closest match until real clone wired)
 }
 
 STYLE_HINTS = {
@@ -892,7 +891,6 @@ async def list_voices():
             {"id": "jennifer",  "name": "Jennifer",  "gender": "female", "description": "Brillante y juvenil"},
             {"id": "alexander", "name": "Alexander", "gender": "male",   "description": "Profunda y serena"},
             {"id": "steven",    "name": "Steven",    "gender": "male",   "description": "Clara y profesional"},
-            {"id": "rasc",      "name": "RASC (Tu voz)", "gender": "custom", "description": "Clon de tu voz (requiere ElevenLabs)", "premium_only": True},
         ]
     }
 

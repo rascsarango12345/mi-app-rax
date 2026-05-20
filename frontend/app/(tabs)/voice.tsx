@@ -16,14 +16,13 @@ import { Audio } from "expo-av";
 import { Colors, Radius, Spacing } from "@/src/theme";
 import { apiPost } from "@/src/api";
 
-type Voice = { id: "thalia" | "jennifer" | "alexander" | "steven" | "rasc"; name: string; gender: string; description: string; premium_only?: boolean };
+type Voice = { id: "thalia" | "jennifer" | "alexander" | "steven"; name: string; gender: string; description: string };
 
 const VOICES: Voice[] = [
   { id: "thalia",    name: "Thalia",    gender: "Mujer",  description: "Cálida y amigable" },
   { id: "jennifer",  name: "Jennifer",  gender: "Mujer",  description: "Brillante y juvenil" },
   { id: "alexander", name: "Alexander", gender: "Hombre", description: "Profunda y serena" },
   { id: "steven",    name: "Steven",    gender: "Hombre", description: "Clara y profesional" },
-  { id: "rasc",      name: "RASC (Tu voz)", gender: "Tú", description: "Clon de tu voz", premium_only: true },
 ];
 
 export default function VoiceScreen() {
