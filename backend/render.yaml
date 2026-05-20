@@ -1,0 +1,31 @@
+# Render Blueprint for RAX AI Backend
+# Auto-creates the service when connected from Render dashboard
+services:
+  - type: web
+    name: raxai-backend
+    runtime: python
+    region: oregon
+    plan: starter
+    branch: main
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120 --access-logfile - --error-logfile -
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: MONGO_URL
+        sync: false              # Set manually in Render dashboard (from MongoDB Atlas)
+      - key: DB_NAME
+        value: raxai_database
+      - key: EMERGENT_LLM_KEY
+        sync: false              # Set manually in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true      # Render generates a strong random value
+      - key: STRIPE_SECRET_KEY
+        sync: false              # Paste your sk_live_... in Render dashboard
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false              # Paste your pk_live_... in Render dashboard
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false              # Paste whsec_... after creating the webhook in Stripe

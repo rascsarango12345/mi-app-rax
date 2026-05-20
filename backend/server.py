@@ -406,6 +406,23 @@ async def root():
     return {"app": "RAX AI", "by": "RASC", "status": "online"}
 
 
+@api.get("/health")
+async def health_check():
+    """Health check endpoint for Render, Railway, Kubernetes, etc."""
+    try:
+        # Ping MongoDB to ensure DB is reachable
+        await db.command("ping")
+        db_ok = True
+    except Exception:
+        db_ok = False
+    return {
+        "status": "healthy" if db_ok else "degraded",
+        "db": "ok" if db_ok else "fail",
+        "version": "1.0.0",
+        "service": "rax-ai-backend",
+    }
+
+
 @api.post("/auth/register")
 async def register(body: RegisterIn):
     existing = await db.users.find_one({"email": body.email.lower()})
