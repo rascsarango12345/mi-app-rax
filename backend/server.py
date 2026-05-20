@@ -148,10 +148,11 @@ class BlockUserIn(BaseModel):
 # Helpers
 # =====================
 VOICE_MAP = {
-    "sofia": "nova",     # Female warm
-    "luna": "shimmer",   # Female bright
-    "diego": "onyx",     # Male deep
-    "alex": "echo",      # Male clear
+    "thalia":    "nova",     # Female warm
+    "jennifer":  "shimmer",  # Female bright
+    "alexander": "onyx",     # Male deep
+    "steven":    "echo",     # Male clear
+    "rasc":      "fable",    # User clone (using OpenAI 'fable' as closest match until real clone wired)
 }
 
 STYLE_HINTS = {
@@ -887,10 +888,11 @@ async def tts(body: TTSIn, user: dict = Depends(get_current_user)):
 async def list_voices():
     return {
         "voices": [
-            {"id": "sofia", "name": "Sofía", "gender": "female", "description": "Cálida y amigable"},
-            {"id": "luna", "name": "Luna", "gender": "female", "description": "Brillante y juvenil"},
-            {"id": "diego", "name": "Diego", "gender": "male", "description": "Profunda y serena"},
-            {"id": "alex", "name": "Alex", "gender": "male", "description": "Clara y profesional"},
+            {"id": "thalia",    "name": "Thalia",    "gender": "female", "description": "Cálida y amigable"},
+            {"id": "jennifer",  "name": "Jennifer",  "gender": "female", "description": "Brillante y juvenil"},
+            {"id": "alexander", "name": "Alexander", "gender": "male",   "description": "Profunda y serena"},
+            {"id": "steven",    "name": "Steven",    "gender": "male",   "description": "Clara y profesional"},
+            {"id": "rasc",      "name": "RASC (Tu voz)", "gender": "custom", "description": "Clon de tu voz (requiere ElevenLabs)", "premium_only": True},
         ]
     }
 

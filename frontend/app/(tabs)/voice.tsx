@@ -16,17 +16,18 @@ import { Audio } from "expo-av";
 import { Colors, Radius, Spacing } from "@/src/theme";
 import { apiPost } from "@/src/api";
 
-type Voice = { id: "sofia" | "luna" | "diego" | "alex"; name: string; gender: string; description: string };
+type Voice = { id: "thalia" | "jennifer" | "alexander" | "steven" | "rasc"; name: string; gender: string; description: string; premium_only?: boolean };
 
 const VOICES: Voice[] = [
-  { id: "sofia", name: "Sofía", gender: "Mujer", description: "Cálida y amigable" },
-  { id: "luna", name: "Luna", gender: "Mujer", description: "Brillante y juvenil" },
-  { id: "diego", name: "Diego", gender: "Hombre", description: "Profunda y serena" },
-  { id: "alex", name: "Alex", gender: "Hombre", description: "Clara y profesional" },
+  { id: "thalia",    name: "Thalia",    gender: "Mujer",  description: "Cálida y amigable" },
+  { id: "jennifer",  name: "Jennifer",  gender: "Mujer",  description: "Brillante y juvenil" },
+  { id: "alexander", name: "Alexander", gender: "Hombre", description: "Profunda y serena" },
+  { id: "steven",    name: "Steven",    gender: "Hombre", description: "Clara y profesional" },
+  { id: "rasc",      name: "RASC (Tu voz)", gender: "Tú", description: "Clon de tu voz", premium_only: true },
 ];
 
 export default function VoiceScreen() {
-  const [voice, setVoice] = useState<Voice["id"]>("sofia");
+  const [voice, setVoice] = useState<Voice["id"]>("thalia");
   const [text, setText] = useState("Hola, soy RAX AI. La inteligencia que piensa contigo.");
   const [loading, setLoading] = useState(false);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
