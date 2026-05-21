@@ -20,7 +20,7 @@ export default function TermsScreen() {
           <P><B>1. Aceptación.</B> Al usar RAX AI ("la App"), aceptas estos Términos y nuestra Política de Privacidad. Si no estás de acuerdo, no uses la App.</P>
           <P><B>2. Servicios.</B> RAX AI es un asistente conversacional de IA creado por RASC (Sarango Cabrera) que ofrece chat, generación de imágenes, voz, creación de contenido y herramientas adicionales.</P>
           <P><B>3. Cuentas.</B> Eres responsable de la seguridad de tu cuenta y contraseña. Notifícanos de inmediato si sospechas un uso no autorizado.</P>
-          <P><B>4. Planes y pagos.</B> Ofrecemos plan Gratis (30 msgs, 5 imágenes, 10 fotos por chat al día), Premium ($5.99/mes: 1,000 msgs, 200 imágenes, 40 fotos por chat al día) y Pro ($15.99/mes: uso ilimitado). Pagos vía Stripe.</P>
+          <P><B>4. Planes y pagos.</B> Ofrecemos plan Gratis (30 msgs, 5 imágenes, 10 fotos por chat al día), Premium ($5.99/mes: 1,000 msgs, 200 imágenes, 40 fotos por chat al día) y Pro ($15.99/mes: uso ilimitado). Pagos procesados de forma segura por la tienda de aplicaciones correspondiente.</P>
           <P><B>5. Reembolsos.</B> Puedes cancelar tu suscripción desde tu Perfil. El reembolso del último cobro se procesa al instante y aparece en tu método de pago en 5-10 días hábiles.</P>
           <P><B>6. Uso aceptable.</B> No utilices la App para: actividades ilegales, contenido que incite al odio, violencia o pornografía infantil, spam, ingeniería inversa, suplantación o explotar vulnerabilidades. Nos reservamos el derecho de bloquear cuentas que infrinjan estas reglas.</P>
           <P><B>7. Propiedad intelectual.</B> El contenido generado por la IA pertenece al usuario que lo solicitó, pero RAX AI y su tecnología son propiedad de RASC. No reclamas derechos sobre el código, marca ni infraestructura.</P>
@@ -30,9 +30,9 @@ export default function TermsScreen() {
         </Section>
 
         <Section title="🔒 Política de Privacidad">
-          <P><B>Datos que recolectamos:</B> email, nombre, contraseña encriptada (bcrypt), mensajes y contenido que envías, fotos que subes para análisis, plan de suscripción, datos de uso (cantidad de mensajes/imágenes/fotos), e información de Stripe para procesar pagos.</P>
+          <P><B>Datos que recolectamos:</B> email, nombre, contraseña encriptada (bcrypt), mensajes y contenido que envías, fotos que subes para análisis, plan de suscripción, datos de uso (cantidad de mensajes/imágenes/fotos), y datos de pago procesados de forma segura por la tienda de aplicaciones.</P>
           <P><B>Cómo usamos tus datos:</B> Para proveer la IA, mejorar el servicio, procesar pagos, prevenir abuso y soporte. NO vendemos tus datos a terceros.</P>
-          <P><B>Compartir datos:</B> Solo con: (a) Stripe para pagos, (b) Anthropic/Google/OpenAI para procesar consultas de IA (los proveedores tienen sus propias políticas), (c) autoridades cuando legalmente sea requerido.</P>
+          <P><B>Compartir datos:</B> Solo con: (a) los procesadores de pago de la tienda de aplicaciones, (b) Anthropic/Google/OpenAI para procesar consultas de IA (los proveedores tienen sus propias políticas), (c) autoridades cuando legalmente sea requerido.</P>
           <P><B>Almacenamiento:</B> Tus conversaciones se guardan en MongoDB cifrado. Las imágenes generadas se guardan como base64 en tu cuenta.</P>
           <P><B>Tus derechos:</B> Puedes solicitar acceso, rectificación o eliminación de tus datos escribiendo desde la sección de Soporte. Cancelar tu cuenta elimina tu información personal.</P>
           <P><B>Seguridad:</B> Usamos HTTPS, JWT, bcrypt para contraseñas, y prácticas de seguridad estándar. Sin embargo, ningún sistema es 100% inviolable.</P>

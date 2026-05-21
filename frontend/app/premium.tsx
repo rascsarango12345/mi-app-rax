@@ -106,7 +106,7 @@ export default function PremiumScreen() {
           </View>
         )}
         <Text style={styles.intro}>
-          Desbloquea todo el poder de RAX AI. Pago seguro con Stripe (Apple Pay · Google Pay · Tarjetas).
+          Desbloquea todo el poder de RAX AI. Cancela cuando quieras.
         </Text>
         {PLANS.map((p) => (
           <View
@@ -153,7 +153,7 @@ export default function PremiumScreen() {
         ))}
 
         <Text style={styles.payments}>
-          🔒 Pagos seguros por Stripe · Cancela cuando quieras
+          🔒 Cancela cuando quieras
         </Text>
       </ScrollView>
     </SafeAreaView>

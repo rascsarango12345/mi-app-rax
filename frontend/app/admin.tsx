@@ -205,7 +205,7 @@ export default function AdminScreen() {
                 <Text style={styles.revLabel}>SUSCRIPCIONES ACTIVAS</Text>
                 <Text style={styles.revValue}>{subs.total_active}</Text>
                 <Text style={styles.revAnnual}>${subs.monthly_revenue_usd} /mes · ${subs.annual_projection_usd} /año</Text>
-                <Text style={styles.revDate}>📌 Conecta Stripe Connect al publicar para recibir pagos</Text>
+                <Text style={styles.revDate}>📌 Configura tu procesador de pagos al publicar para recibir pagos</Text>
               </View>
             )
           }
