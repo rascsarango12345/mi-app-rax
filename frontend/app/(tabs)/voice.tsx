@@ -1,246 +1,323 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   ScrollView,
   ActivityIndicator,
   Platform,
   Alert,
+  Animated,
+  Easing,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
+import { LinearGradient } from "expo-linear-gradient";
 import { Colors, Radius, Spacing } from "@/src/theme";
 import { apiPost } from "@/src/api";
+import { useT } from "@/src/i18n";
 
-type Voice = { id: "thalia" | "jennifer" | "alexander" | "steven"; name: string; gender: string; description: string };
+type VoiceId = "thalia" | "jennifer" | "alexander" | "steven";
+type Voice = { id: VoiceId; name: string; emoji: string; gender: string; description: string; gradient: [string, string] };
 
 const VOICES: Voice[] = [
-  { id: "thalia",    name: "Thalia",    gender: "Mujer",  description: "Cálida y amigable" },
-  { id: "jennifer",  name: "Jennifer",  gender: "Mujer",  description: "Brillante y juvenil" },
-  { id: "alexander", name: "Alexander", gender: "Hombre", description: "Profunda y serena" },
-  { id: "steven",    name: "Steven",    gender: "Hombre", description: "Clara y profesional" },
+  { id: "thalia",    name: "Thalia",    emoji: "👩‍🦱", gender: "Mujer",  description: "Cálida y amigable",    gradient: ["#FF6E40", "#D81B60"] },
+  { id: "jennifer",  name: "Jennifer",  emoji: "👩",   gender: "Mujer",  description: "Brillante y juvenil",  gradient: ["#7C4DFF", "#3949AB"] },
+  { id: "alexander", name: "Alexander", emoji: "👨",   gender: "Hombre", description: "Profunda y serena",    gradient: ["#1E88E5", "#0D47A1"] },
+  { id: "steven",    name: "Steven",    emoji: "👨‍💼", gender: "Hombre", description: "Clara y profesional",  gradient: ["#00C853", "#00897B"] },
 ];
 
+type Turn = { id: string; role: "user" | "assistant"; content: string };
+
 export default function VoiceScreen() {
-  const [voice, setVoice] = useState<Voice["id"]>("thalia");
-  const [text, setText] = useState("Hola, soy RAX AI. La inteligencia que piensa contigo.");
-  const [loading, setLoading] = useState(false);
+  const { t, lang } = useT();
+  const [voice, setVoice] = useState<VoiceId>("thalia");
+  const [history, setHistory] = useState<Turn[]>([]);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [recState, setRecState] = useState<"idle" | "recording" | "transcribing">("idle");
+  const [state, setState] = useState<"idle" | "recording" | "processing" | "speaking">("idle");
+  const [stage, setStage] = useState<string>("");
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const scrollRef = useRef<ScrollView>(null);
 
+  const persona = VOICES.find((v) => v.id === voice) || VOICES[0];
+
+  const showError = (m: string) => (Platform.OS === "web" ? window.alert(m) : Alert.alert("Voz", m));
+
+  // Pulse animation while recording
+  useEffect(() => {
+    if (state === "recording") {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.3, duration: 600, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(1);
+    }
+  }, [state]);
+
+  // Cleanup audio on unmount
   useEffect(() => {
     return () => {
       if (sound) sound.unloadAsync();
+      if (recording) recording.stopAndUnloadAsync().catch(() => {});
     };
-  }, [sound]);
+  }, []);
 
-  const showError = (m: string) => (Platform.OS === "web" ? window.alert(m) : Alert.alert("Error", m));
-
-  const speak = async () => {
-    if (!text.trim()) return;
-    setLoading(true);
-    try {
-      const r = await apiPost("/voice/tts", { text: text.trim(), voice });
-      const uri = `data:${r.mime_type};base64,${r.audio_base64}`;
-      if (sound) await sound.unloadAsync();
-      const { sound: s } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
-      setSound(s);
-    } catch (e: any) {
-      showError(e?.message || "TTS error");
-    } finally {
-      setLoading(false);
-    }
+  // Reset history when changing persona
+  const switchVoice = async (newVoice: VoiceId) => {
+    if (newVoice === voice) return;
+    if (sound) await sound.unloadAsync().catch(() => {});
+    setSound(null);
+    setVoice(newVoice);
+    setHistory([]);
+    setState("idle");
+    setStage("");
   };
 
   const startRecording = async () => {
     try {
       const perm = await Audio.requestPermissionsAsync();
-      if (!perm.granted) {
-        showError("Necesitamos permiso del micrófono");
-        return;
-      }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: r } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(r);
-      setRecState("recording");
+      if (!perm.granted) { showError("Necesitamos permiso del micrófono"); return; }
+
+      // Stop any playing audio
+      if (sound) { await sound.unloadAsync().catch(() => {}); setSound(null); }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+      });
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await rec.startAsync();
+      setRecording(rec);
+      setState("recording");
     } catch (e: any) {
-      showError(e?.message || "Error al grabar");
+      showError("Error iniciando grabación: " + (e?.message || ""));
+      setState("idle");
     }
   };
 
-  const stopRecording = async () => {
+  const stopAndSend = async () => {
     if (!recording) return;
-    setRecState("transcribing");
+    setState("processing");
+    setStage("Procesando tu voz...");
     try {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
       setRecording(null);
-      if (!uri) return;
+      if (!uri) { showError("No se generó el audio"); setState("idle"); return; }
 
-      let base64: string;
-      let mime = "audio/m4a";
+      // Read audio as base64
+      let audioBase64 = "";
+      let mimeType = "audio/m4a";
       if (Platform.OS === "web") {
-        const blob = await (await fetch(uri)).blob();
-        mime = blob.type || "audio/webm";
-        base64 = await new Promise<string>((resolve, reject) => {
-          const fr = new FileReader();
-          fr.onloadend = () => resolve(String(fr.result).split(",")[1] || "");
-          fr.onerror = reject;
-          fr.readAsDataURL(blob);
+        const r = await fetch(uri);
+        const blob = await r.blob();
+        mimeType = blob.type || "audio/webm";
+        audioBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(",", 2)[1] || "");
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
         });
       } else {
-        const FS = await import("expo-file-system/legacy");
-        base64 = await FS.readAsStringAsync(uri, { encoding: FS.EncodingType.Base64 });
+        const FileSystem = require("expo-file-system");
+        audioBase64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+        mimeType = uri.endsWith(".m4a") ? "audio/m4a" : (uri.endsWith(".webm") ? "audio/webm" : "audio/m4a");
       }
 
-      const r = await apiPost("/voice/transcribe", { audio_base64: base64, mime_type: mime });
-      setText(r.text);
+      setStage(`${persona.name} está pensando...`);
+      // Call unified converse endpoint
+      const user_tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const historyForApi = history.slice(-6).map((t) => ({ role: t.role, content: t.content }));
+      const r = await apiPost("/voice/converse", {
+        audio_base64: audioBase64,
+        mime_type: mimeType,
+        voice,
+        history: historyForApi,
+        locale: lang,
+        user_tz,
+      });
+
+      // Update conversation
+      const userTurn: Turn = { id: `u_${Date.now()}`, role: "user", content: r.user_text };
+      const aiTurn: Turn = { id: `a_${Date.now()}`, role: "assistant", content: r.ai_text };
+      setHistory((h) => [...h, userTurn, aiTurn]);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+
+      // Play TTS response
+      if (r.audio_base64) {
+        setState("speaking");
+        setStage(`${persona.name} habla...`);
+        const audioUri = `data:${r.mime_type || "audio/mp3"};base64,${r.audio_base64}`;
+        const { sound: s } = await Audio.Sound.createAsync({ uri: audioUri }, { shouldPlay: true });
+        setSound(s);
+        s.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.didJustFinish) {
+            setState("idle");
+            setStage("");
+          }
+        });
+      } else {
+        setState("idle");
+        setStage("");
+      }
     } catch (e: any) {
-      showError(e?.message || "Error al transcribir");
-    } finally {
-      setRecState("idle");
+      const msg = e?.message || "Error desconocido";
+      showError("Error: " + msg);
+      setState("idle");
+      setStage("");
     }
   };
+
+  const clearChat = () => {
+    if (sound) sound.unloadAsync().catch(() => {});
+    setSound(null);
+    setHistory([]);
+    setState("idle");
+    setStage("");
+  };
+
+  const mainBtnIcon = state === "recording" ? "stop" : state === "processing" ? "hourglass" : state === "speaking" ? "volume-high" : "mic";
+  const mainBtnAction = state === "idle" ? startRecording : state === "recording" ? stopAndSend : undefined;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Voz IA</Text>
-        <Text style={styles.sub}>4 voces realistas · STT + TTS</Text>
+        <Text style={styles.title}>🎙️ Conversación por voz</Text>
+        {history.length > 0 && (
+          <TouchableOpacity onPress={clearChat}>
+            <Ionicons name="refresh" size={22} color={Colors.electricBlue} />
+          </TouchableOpacity>
+        )}
       </View>
-      <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
-        <Text style={styles.label}>Elige una voz</Text>
-        <View style={styles.voicesGrid}>
-          {VOICES.map((v) => (
+
+      {/* Persona selector */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.personasRow}>
+        {VOICES.map((v) => {
+          const active = v.id === voice;
+          return (
             <TouchableOpacity
               key={v.id}
-              testID={`voice-${v.id}`}
-              style={[styles.voiceCard, voice === v.id && styles.voiceActive]}
-              onPress={() => setVoice(v.id)}
+              testID={`voice-persona-${v.id}`}
+              onPress={() => switchVoice(v.id)}
+              activeOpacity={0.85}
+              style={[styles.personaCardWrap, active && { transform: [{ scale: 1.05 }] }]}
             >
-              <Ionicons
-                name={v.gender === "Mujer" ? "woman-outline" : "man-outline"}
-                size={24}
-                color={voice === v.id ? "#000" : Colors.electricBlue}
-              />
-              <Text style={[styles.voiceName, voice === v.id && { color: "#000" }]}>{v.name}</Text>
-              <Text style={[styles.voiceDesc, voice === v.id && { color: "#000" }]}>{v.description}</Text>
-              <Text style={[styles.voiceGender, voice === v.id && { color: "#000" }]}>{v.gender}</Text>
+              <LinearGradient
+                colors={active ? v.gradient : ["#1A1A1A", "#2A2A2A"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.personaCard, active && styles.personaCardActive]}
+              >
+                <Text style={styles.personaEmoji}>{v.emoji}</Text>
+                <Text style={[styles.personaName, active && { color: "#fff" }]}>{v.name}</Text>
+                <Text style={[styles.personaDesc, active && { color: "rgba(255,255,255,0.85)" }]}>{v.description}</Text>
+              </LinearGradient>
             </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={[styles.label, { marginTop: Spacing.lg }]}>Texto a decir</Text>
-        <TextInput
-          testID="tts-input"
-          style={styles.input}
-          value={text}
-          onChangeText={setText}
-          multiline
-          placeholder="Escribe lo que quieras escuchar..."
-          placeholderTextColor={Colors.textMuted}
-        />
-
-        <View style={styles.row}>
-          <TouchableOpacity testID="btn-speak" style={[styles.cta, { flex: 1 }]} onPress={speak} disabled={loading}>
-            {loading ? <ActivityIndicator color="#000" /> : <>
-              <Ionicons name="volume-high" size={18} color="#000" />
-              <Text style={styles.ctaText}>Hablar</Text>
-            </>}
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ marginTop: Spacing.lg, alignItems: "center" }}>
-          <Text style={styles.label}>O dictá con micrófono</Text>
-          <TouchableOpacity
-            testID="btn-record"
-            style={[styles.micBtn, recState === "recording" && styles.micRecording]}
-            onPress={recState === "recording" ? stopRecording : startRecording}
-            disabled={recState === "transcribing"}
-          >
-            {recState === "transcribing" ? (
-              <ActivityIndicator color="#fff" size="large" />
-            ) : (
-              <Ionicons
-                name={recState === "recording" ? "stop" : "mic"}
-                size={36}
-                color="#fff"
-              />
-            )}
-          </TouchableOpacity>
-          <Text style={styles.micLabel}>
-            {recState === "recording"
-              ? "Grabando... toca para parar"
-              : recState === "transcribing"
-              ? "Transcribiendo..."
-              : "Toca para grabar"}
-          </Text>
-        </View>
+          );
+        })}
       </ScrollView>
+
+      {/* Conversation history */}
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: Spacing.md, gap: 10 }}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+      >
+        {history.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyEmoji}>{persona.emoji}</Text>
+            <Text style={styles.emptyTitle}>Habla con {persona.name}</Text>
+            <Text style={styles.emptyDesc}>
+              Toca el micrófono y hazle cualquier pregunta. {persona.name} sabe TODO y te responderá con voz.
+            </Text>
+          </View>
+        ) : (
+          history.map((turn) => (
+            <View
+              key={turn.id}
+              style={[styles.bubble, turn.role === "user" ? styles.userBubble : styles.aiBubble]}
+            >
+              {turn.role === "assistant" && (
+                <Text style={[styles.aiLabel, { color: persona.gradient[0] }]}>{persona.emoji} {persona.name}</Text>
+              )}
+              <Text style={[styles.bubbleText, turn.role === "user" && { color: "#fff" }]}>{turn.content}</Text>
+            </View>
+          ))
+        )}
+        {(state === "processing" || state === "speaking") && (
+          <View style={styles.stageBox}>
+            <ActivityIndicator color={persona.gradient[0]} size="small" />
+            <Text style={[styles.stageText, { color: persona.gradient[0] }]}>{stage}</Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Recording footer */}
+      <View style={styles.footer}>
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+          <TouchableOpacity
+            testID="voice-record-btn"
+            disabled={state === "processing" || state === "speaking"}
+            onPress={mainBtnAction}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={state === "recording" ? ["#FF3D00", "#D50000"] : persona.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.mainBtn}
+            >
+              <Ionicons name={mainBtnIcon as any} size={42} color="#fff" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+        <Text style={styles.hint}>
+          {state === "idle" && `Toca para hablar con ${persona.name}`}
+          {state === "recording" && "🔴 Grabando... toca para enviar"}
+          {state === "processing" && "Procesando..."}
+          {state === "speaking" && "Escuchando..."}
+        </Text>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  header: { padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  title: { color: Colors.textPrimary, fontSize: 22, fontWeight: "800" },
-  sub: { color: Colors.textSecondary, marginTop: 4 },
-  label: { color: Colors.textSecondary, fontSize: 12, letterSpacing: 1, marginBottom: 8, textTransform: "uppercase" },
-  voicesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  voiceCard: {
-    width: "48%",
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  voiceActive: { backgroundColor: Colors.electricBlue, borderColor: Colors.electricBlue },
-  voiceName: { color: Colors.textPrimary, fontWeight: "700", fontSize: 16, marginTop: 6 },
-  voiceDesc: { color: Colors.textSecondary, fontSize: 12, marginTop: 2 },
-  voiceGender: { color: Colors.textMuted, fontSize: 11, marginTop: 6, letterSpacing: 1 },
-  input: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    padding: 14,
-    color: Colors.textPrimary,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    minHeight: 90,
-    textAlignVertical: "top",
-  },
-  row: { flexDirection: "row", gap: 10, marginTop: Spacing.md },
-  cta: {
-    backgroundColor: Colors.electricBlue,
-    paddingVertical: 14,
-    borderRadius: Radius.pill,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-  },
-  ctaText: { color: "#000", fontWeight: "800", fontSize: 15 },
-  micBtn: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: Colors.electricBlue,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
-    shadowColor: Colors.electricBlue,
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  micRecording: { backgroundColor: Colors.error },
-  micLabel: { color: Colors.textSecondary, marginTop: 12, fontSize: 13 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  title: { color: Colors.textPrimary, fontSize: 18, fontWeight: "800" },
+  personasRow: { padding: Spacing.md, gap: 10 },
+  personaCardWrap: { borderRadius: Radius.lg },
+  personaCard: { width: 130, padding: 12, borderRadius: Radius.lg, alignItems: "center", borderWidth: 1, borderColor: Colors.border },
+  personaCardActive: { borderColor: "rgba(255,255,255,0.3)", borderWidth: 2 },
+  personaEmoji: { fontSize: 38, marginBottom: 6 },
+  personaName: { color: Colors.textPrimary, fontSize: 14, fontWeight: "800" },
+  personaDesc: { color: Colors.textSecondary, fontSize: 10, marginTop: 4, textAlign: "center" },
+  empty: { padding: 40, alignItems: "center", gap: 10 },
+  emptyEmoji: { fontSize: 80 },
+  emptyTitle: { color: Colors.textPrimary, fontSize: 20, fontWeight: "800", marginTop: 8 },
+  emptyDesc: { color: Colors.textSecondary, textAlign: "center", fontSize: 14, lineHeight: 21, paddingHorizontal: 20 },
+  bubble: { padding: 14, borderRadius: Radius.md, maxWidth: "85%" },
+  userBubble: { backgroundColor: Colors.electricBlue, alignSelf: "flex-end" },
+  aiBubble: { backgroundColor: Colors.surface, alignSelf: "flex-start", borderWidth: 1, borderColor: Colors.border },
+  aiLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 1, marginBottom: 6 },
+  bubbleText: { color: Colors.textPrimary, fontSize: 15, lineHeight: 22 },
+  stageBox: { flexDirection: "row", gap: 8, padding: 12, alignItems: "center", alignSelf: "center" },
+  stageText: { fontSize: 13, fontWeight: "700" },
+  footer: { padding: Spacing.md, alignItems: "center", gap: 10, borderTopWidth: 1, borderTopColor: Colors.border },
+  mainBtn: { width: 90, height: 90, borderRadius: 45, alignItems: "center", justifyContent: "center" },
+  hint: { color: Colors.textSecondary, fontSize: 13, fontWeight: "600" },
 });

@@ -1029,6 +1029,153 @@ async def list_voices():
     }
 
 
+# ============================================================
+# 🎙️ VOICE CONVERSATION (STT + Claude + TTS in 1 call)
+# ============================================================
+VOICE_PERSONAS = {
+    "thalia": {
+        "name": "Thalia",
+        "personality": "Eres Thalia, una mujer cálida, amigable y empática. Hablas como una mejor amiga que entiende y aconseja. Usa tono cariñoso, alegre, con expresiones tipo 'mi amor', 'cariño', 'cielo'.",
+    },
+    "jennifer": {
+        "name": "Jennifer",
+        "personality": "Eres Jennifer, una mujer joven, brillante y enérgica. Hablas con entusiasmo, eres divertida y moderna. Usas expresiones jóvenes como 'súper', 'genial', 'wow'.",
+    },
+    "alexander": {
+        "name": "Alexander",
+        "personality": "Eres Alexander, un hombre maduro, sabio, sereno y profundo. Hablas con calma, autoridad y reflexión. Das consejos como un mentor experimentado.",
+    },
+    "steven": {
+        "name": "Steven",
+        "personality": "Eres Steven, un hombre profesional, claro y directo. Hablas con precisión, eficiencia y profesionalismo. Eres como un consultor ejecutivo.",
+    },
+}
+
+
+class VoiceConverseIn(BaseModel):
+    audio_base64: Optional[str] = None
+    text_input: Optional[str] = None  # alternative if user types
+    mime_type: str = "audio/m4a"
+    voice: Literal["thalia", "jennifer", "alexander", "steven"] = "thalia"
+    history: list = []  # [{"role":"user","content":"..."}, {"role":"assistant","content":"..."}]
+    locale: str = "es"
+    user_tz: str = "UTC"
+
+
+@api.post("/voice/converse")
+async def voice_converse(body: VoiceConverseIn, user: dict = Depends(get_current_user)):
+    """One-shot conversational endpoint: STT -> Claude -> TTS."""
+    await check_quota(user, "messages")
+
+    # 1) Get user text (from audio or text input)
+    user_text = ""
+    if body.audio_base64:
+        try:
+            b64 = body.audio_base64.split(",", 1)[-1] if "," in body.audio_base64 else body.audio_base64
+            audio_bytes = base64.b64decode(b64)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Audio inválido")
+        ext = (body.mime_type or "audio/m4a").split("/")[-1].split(";")[0] or "m4a"
+        file_obj = io.BytesIO(audio_bytes)
+        file_obj.name = f"audio.{ext}"
+        try:
+            stt = openai_client.audio.transcriptions.create(model="whisper-1", file=file_obj)
+            user_text = (stt.text if hasattr(stt, "text") else str(stt)).strip()
+        except Exception as e:
+            logger.exception("STT error in converse")
+            raise HTTPException(status_code=502, detail=f"Error transcribiendo: {str(e)[:200]}")
+    elif body.text_input and body.text_input.strip():
+        user_text = body.text_input.strip()
+
+    if not user_text:
+        raise HTTPException(status_code=400, detail="No pude escuchar nada. Intenta hablar más fuerte.")
+
+    # 2) Build persona-aware system prompt + web search if needed
+    persona = VOICE_PERSONAS.get(body.voice, VOICE_PERSONAS["thalia"])
+    lang_names = {"es": "Spanish", "en": "English", "hi": "Hindi", "zh": "Chinese", "ru": "Russian"}
+    lang = lang_names.get((body.locale or "es").lower().split("-")[0], "Spanish")
+
+    # Time context
+    try:
+        from zoneinfo import ZoneInfo
+        tz_obj = ZoneInfo(body.user_tz)
+        now_local = datetime.now(tz_obj)
+        weekday_es = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"][now_local.weekday()]
+        time_str = now_local.strftime("%H:%M")
+        date_str = now_local.strftime("%d/%m/%Y")
+    except Exception:
+        weekday_es, time_str, date_str = "", "", ""
+
+    system_prompt = (
+        f"{persona['personality']}\n\n"
+        f"Eres parte de RAX AI (la app más avanzada de IA, creada por RASC). Esta es una conversación POR VOZ, "
+        f"así que tus respuestas deben ser NATURALES, CORTAS (máximo 3-4 oraciones), CONVERSACIONALES (no uses listas, ni markdown, ni encabezados). "
+        f"Habla como si estuvieras teniendo una llamada telefónica con el usuario.\n\n"
+        f"Idioma: responde SIEMPRE en {lang}.\n"
+        f"Fecha actual: {date_str} ({weekday_es}). Hora local: {time_str}.\n\n"
+        f"=== CONOCIMIENTO TOTAL ===\n"
+        f"Tienes acceso en TIEMPO REAL a internet. Sabes TODO: noticias del momento, ciencia, matemáticas, "
+        f"historia, deportes, programación, medicina, finanzas, criptomonedas, cultura pop, etc. "
+        f"NUNCA digas 'no tengo info actualizada' o 'no tengo acceso a internet'.\n\n"
+        f"=== REGLAS CONVERSACIONALES ===\n"
+        f" • Sé natural y humana. Como si hablara una persona real, no un robot.\n"
+        f" • Respuestas BREVES (2-4 oraciones), excepto si el usuario pide algo largo.\n"
+        f" • Si el usuario pregunta algo factual reciente, responde con confianza usando los datos del contexto web abajo.\n"
+        f" • NO uses listas con guiones, NO uses markdown. Habla en prosa natural.\n"
+        f" • Si te preguntan tu nombre, eres {persona['name']} de RAX AI.\n"
+    )
+
+    # Web search for current info
+    if needs_web_search(user_text):
+        web_results = do_web_search(user_text, max_results=4)
+        if web_results:
+            system_prompt += f"\n\n=== INFO WEB RECIENTE ===\n{web_results}"
+
+    # 3) Send to Claude with conversation history
+    session_id = f"voice_{user['user_id']}_{body.voice}"
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id, system_message=system_prompt)
+    chat.with_model("anthropic", "claude-sonnet-4-5-20250929")
+
+    # Re-feed last 6 turns of history so Claude has context
+    try:
+        prior_text = ""
+        for h in (body.history or [])[-6:]:
+            role = h.get("role", "user")
+            content = h.get("content", "")
+            prior_text += f"\n[{role.upper()}]: {content}"
+        full_input = (prior_text + f"\n[USER]: {user_text}").strip() if prior_text else user_text
+        ai_text = await chat.send_message(UserMessage(text=full_input))
+    except Exception as e:
+        logger.exception("Voice converse - Claude error")
+        raise HTTPException(status_code=502, detail=f"Error generando respuesta: {str(e)[:200]}")
+
+    # Trim AI response if too long (TTS gets expensive after ~500 chars)
+    tts_text = ai_text.strip()
+    if len(tts_text) > 800:
+        tts_text = tts_text[:780] + "..."
+
+    # 4) TTS the AI response with chosen voice
+    openai_voice = VOICE_MAP.get(body.voice, "nova")
+    try:
+        speech = openai_client.audio.speech.create(model="tts-1", voice=openai_voice, input=tts_text)
+        audio_bytes = speech.read() if hasattr(speech, "read") else bytes(speech.content)
+    except Exception as e:
+        logger.exception("Voice converse - TTS error")
+        # Even if TTS fails, return the text response
+        audio_bytes = b""
+
+    await bump_quota(user["user_id"], "messages")
+
+    return {
+        "user_text": user_text,
+        "ai_text": ai_text,
+        "audio_base64": base64.b64encode(audio_bytes).decode("utf-8") if audio_bytes else "",
+        "mime_type": "audio/mp3",
+        "voice": body.voice,
+        "persona_name": persona["name"],
+    }
+
+
 # =====================
 # Content creator
 # =====================
