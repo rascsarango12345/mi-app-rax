@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
+import * as FileSystemLegacy from "expo-file-system/legacy";
 import { LinearGradient } from "expo-linear-gradient";
 import { Colors, Radius, Spacing } from "@/src/theme";
 import { apiPost } from "@/src/api";
@@ -114,40 +115,60 @@ export default function VoiceScreen() {
       setRecording(null);
       if (!uri) { showError("No se generó el audio"); setState("idle"); return; }
 
-      // Read audio as base64 using universal fetch + FileReader (works on iOS, Android, Web)
+      // === Read audio as base64 — platform-specific (most reliable approach) ===
       let audioBase64 = "";
       let mimeType = "audio/m4a";
-      try {
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        mimeType = blob.type || (Platform.OS === "web" ? "audio/webm" : "audio/m4a");
-        audioBase64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            const idx = result.indexOf(",");
-            resolve(idx >= 0 ? result.substring(idx + 1) : result);
-          };
-          reader.onerror = () => reject(new Error("No pude leer el audio"));
-          reader.readAsDataURL(blob);
-        });
-      } catch (readErr: any) {
-        // Fallback: try the legacy FileSystem API on native
-        if (Platform.OS !== "web") {
-          try {
-            const FileSystem = await import("expo-file-system/legacy");
-            audioBase64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" as any });
-            mimeType = uri.endsWith(".m4a") ? "audio/m4a" : (uri.endsWith(".webm") ? "audio/webm" : "audio/m4a");
-          } catch (fsErr: any) {
-            throw new Error("No pude convertir el audio: " + (readErr?.message || fsErr?.message || "error desconocido"));
-          }
-        } else {
-          throw readErr;
+
+      if (Platform.OS === "web") {
+        // Web: use fetch + FileReader (only option that works in the browser)
+        try {
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          mimeType = blob.type || "audio/webm";
+          audioBase64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result as string;
+              const idx = result.indexOf(",");
+              resolve(idx >= 0 ? result.substring(idx + 1) : result);
+            };
+            reader.onerror = () => reject(new Error("No pude leer el audio (web)"));
+            reader.readAsDataURL(blob);
+          });
+        } catch (e: any) {
+          throw new Error("No pude leer el audio en el navegador: " + (e?.message || ""));
         }
+      } else {
+        // iOS/Android native: read directly with the legacy file-system API
+        // (this avoids the 'EncodingType is undefined' crash and the fetch(file://) issues on iOS)
+        try {
+          audioBase64 = await FileSystemLegacy.readAsStringAsync(uri, { encoding: "base64" as any });
+        } catch (e: any) {
+          throw new Error("No pude leer el archivo de audio: " + (e?.message || "desconocido"));
+        }
+        // Pick mime by file extension. iOS records .m4a (HIGH_QUALITY preset)
+        const lower = uri.toLowerCase();
+        if (lower.endsWith(".m4a")) mimeType = "audio/m4a";
+        else if (lower.endsWith(".wav")) mimeType = "audio/wav";
+        else if (lower.endsWith(".mp4")) mimeType = "audio/mp4";
+        else if (lower.endsWith(".caf")) mimeType = "audio/m4a";  // Whisper accepts m4a, send as m4a
+        else if (lower.endsWith(".3gp")) mimeType = "audio/3gpp";
+        else mimeType = Platform.OS === "ios" ? "audio/m4a" : "audio/m4a";
       }
+
       if (!audioBase64 || audioBase64.length < 100) {
         throw new Error("Audio vacío. Asegúrate de haber grabado al menos 1 segundo.");
       }
+
+      // CRITICAL iOS FIX: reset audio mode so TTS plays through the MAIN speaker, not the ear piece.
+      // After recording, allowsRecordingIOS stays true and playback gets routed to the receiver speaker.
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+        });
+      } catch (_) {}
 
       setStage(`${persona.name} está pensando...`);
       // Call unified converse endpoint
@@ -173,7 +194,10 @@ export default function VoiceScreen() {
         setState("speaking");
         setStage(`${persona.name} habla...`);
         const audioUri = `data:${r.mime_type || "audio/mp3"};base64,${r.audio_base64}`;
-        const { sound: s } = await Audio.Sound.createAsync({ uri: audioUri }, { shouldPlay: true });
+        const { sound: s } = await Audio.Sound.createAsync(
+          { uri: audioUri },
+          { shouldPlay: true, volume: 1.0 }
+        );
         setSound(s);
         s.setOnPlaybackStatusUpdate((status: any) => {
           if (status.didJustFinish) {

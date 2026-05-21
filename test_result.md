@@ -380,6 +380,49 @@ backend:
               - Injects under "=== HISTORIAL DE ESTA CONVERSACIÓN (memoria) ===" block (lines 860-868).
             No outstanding issues. Conversation memory bug is fully resolved.
 
+  - task: "Voice Conversation FIX - POST /api/voice/converse (mime normalization + retry loop)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: |
+            ✅ FULLY VERIFIED — /api/voice/converse fix works end-to-end.
+            Test script: /app/voice_converse_test.py → 10/10 PASS against public REACT_APP_BACKEND_URL.
+
+            Strategy: generated a real MP3 via /api/voice/tts (72000 bytes, voice=sofia) and round-tripped
+            it through /api/voice/converse with various mime_type values to validate the new
+            normalization + retry loop introduced at server.py lines 1108-1168.
+
+            TEST 1 (Happy path, mime=audio/mp3):
+              → 200 OK. user_text="Hola, ¿cómo estás? Quiero saber qué tiempo hace hoy en Madrid."
+              ai_text len=353, audio_base64 len=599680 (MP3 TTS output).
+
+            TEST 2 (Mime normalization — all 6 variants returned 200 OK with correct user_text):
+              ✅ "audio/x-m4a"          → ext stripped to m4a → transcribed OK
+              ✅ "audio/aac"            → mapped to m4a → transcribed OK
+              ✅ "audio/3gpp"           → mapped to mp4 → transcribed OK
+              ✅ "audio/opus"           → mapped to ogg → transcribed OK
+              ✅ ""                     → defaulted to audio/m4a → transcribed OK
+              ✅ "audio/unknown-format" → unsupported ext, defaulted to m4a → transcribed OK
+              In every case Whisper sniffed the actual MP3 bytes regardless of declared extension
+              (or the retry loop kicked in). No 502s anywhere.
+
+            TEST 3 (Invalid inputs — both return 400, not 500/502):
+              ✅ Empty audio + no text_input → 400 "No pude escuchar nada. Intenta hablar más fuerte."
+              ✅ Tiny audio (<200 bytes after decode) → 400 "Audio vacío. Graba al menos 1 segundo."
+
+            TEST 4 (text_input fallback, no audio):
+              ✅ {text_input:"Hola, ¿cómo estás?", voice:"jennifer"} → 200 OK.
+              ai_text len=92, audio_base64 len=155520 (TTS output for Jennifer voice).
+
+            All pass criteria met. No outstanding issues. Backend logs clean — no tracebacks
+            during these tests.
+
   - task: "Personal Shopper - POST /api/shopper/recommend"
     implemented: true
     working: true
@@ -534,3 +577,27 @@ agent_communication:
         excludes the just-inserted user msg, keeps last 40 turns, caps total to 12K chars working from most
         recent backwards, injects into system_prompt under "=== HISTORIAL DE ESTA CONVERSACIÓN (memoria) ===" block.
         No outstanding issues. Memory bug is fully resolved.
+
+    - agent: "testing"
+      message: |
+        ✅ /api/voice/converse FIX VERIFIED — 10/10 PASS (/app/voice_converse_test.py).
+        Tested against public REACT_APP_BACKEND_URL with admin login (plan=pro).
+        Real MP3 generated via /api/voice/tts (72KB) round-tripped through /api/voice/converse.
+
+        Test 1 (happy path mime=audio/mp3): 200 OK, user_text correctly transcribed (Spanish),
+          ai_text 353 chars, audio_base64 599KB (Claude+TTS round trip).
+
+        Test 2 (mime normalization — all 6 variants → 200 OK):
+          ✅ audio/x-m4a, audio/aac, audio/3gpp, audio/opus, "" (empty), audio/unknown-format
+          All transcribed correctly. Backend log confirms: "voice_converse: unsupported audio ext
+          'unknown-format', defaulting to m4a" — fallback path works.
+
+        Test 3 (invalid inputs → 400, not 500/502):
+          ✅ Empty audio+text → 400 "No pude escuchar nada..."
+          ✅ <200-byte audio → 400 "Audio vacío. Graba al menos 1 segundo."
+
+        Test 4 (text_input fallback): 200 OK, AI response 92 chars, TTS audio 155KB.
+
+        No 502s observed. No tracebacks in /var/log/supervisor/backend.err.log during the run.
+        Mime normalization + retry loop + asyncio.to_thread() + <200-byte validation all working
+        as designed. Task closed.

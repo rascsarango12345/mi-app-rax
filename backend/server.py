@@ -5,6 +5,7 @@ import os
 import io
 import uuid
 import base64
+import asyncio
 import logging
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -1113,15 +1114,58 @@ async def voice_converse(body: VoiceConverseIn, user: dict = Depends(get_current
             audio_bytes = base64.b64decode(b64)
         except Exception:
             raise HTTPException(status_code=400, detail="Audio inválido")
-        ext = (body.mime_type or "audio/m4a").split("/")[-1].split(";")[0] or "m4a"
-        file_obj = io.BytesIO(audio_bytes)
-        file_obj.name = f"audio.{ext}"
-        try:
-            stt = openai_client.audio.transcriptions.create(model="whisper-1", file=file_obj)
-            user_text = (stt.text if hasattr(stt, "text") else str(stt)).strip()
-        except Exception as e:
-            logger.exception("STT error in converse")
-            raise HTTPException(status_code=502, detail=f"Error transcribiendo: {str(e)[:200]}")
+        if not audio_bytes or len(audio_bytes) < 200:
+            raise HTTPException(status_code=400, detail="Audio vacío. Graba al menos 1 segundo.")
+
+        # Normalize mime_type → file extension that OpenAI Whisper accepts.
+        # Whisper supports: flac, m4a, mp3, mp4, mpeg, mpga, oga, ogg, wav, webm
+        SUPPORTED_AUDIO_EXTS = {"flac", "m4a", "mp3", "mp4", "mpeg", "mpga", "oga", "ogg", "wav", "webm"}
+        ext_raw = (body.mime_type or "audio/m4a").split("/")[-1].split(";")[0].strip().lower()
+        if ext_raw.startswith("x-"):
+            ext_raw = ext_raw[2:]
+        # Map common variations (browsers / iOS sometimes send these)
+        ext_map = {
+            "mpeg3": "mp3", "mpga": "mpga", "mp3a": "mp3",
+            "m4a": "m4a", "aac": "m4a",  # AAC files are typically m4a-compatible
+            "wav": "wav", "wave": "wav",
+            "ogg": "ogg", "oga": "oga", "opus": "ogg",
+            "webm": "webm",
+            "mp4": "mp4", "mp4a": "m4a",
+            "flac": "flac",
+            "3gpp": "mp4", "3gp": "mp4",  # Android can record 3gp, treat as mp4 container
+            "amr": "mp4",  # not really supported, but fallback
+            "quicktime": "mp4", "x-caf": "m4a", "caf": "m4a",
+        }
+        ext = ext_map.get(ext_raw, ext_raw)
+        if ext not in SUPPORTED_AUDIO_EXTS:
+            logger.warning(f"voice_converse: unsupported audio ext '{ext_raw}', defaulting to m4a")
+            ext = "m4a"
+
+        # Try the chosen extension first; if Whisper rejects it, retry once with .m4a, then .webm.
+        def _transcribe_with_ext(ext_to_try: str) -> str:
+            fobj = io.BytesIO(audio_bytes)
+            fobj.name = f"audio.{ext_to_try}"
+            stt_resp = openai_client.audio.transcriptions.create(model="whisper-1", file=fobj)
+            return (stt_resp.text if hasattr(stt_resp, "text") else str(stt_resp)).strip()
+
+        last_err: Optional[Exception] = None
+        tried_exts: list = []
+        for candidate in [ext, "m4a", "webm", "mp4", "wav"]:
+            if candidate in tried_exts:
+                continue
+            tried_exts.append(candidate)
+            try:
+                user_text = await asyncio.to_thread(_transcribe_with_ext, candidate)
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                logger.warning(f"voice_converse: STT failed with ext='{candidate}': {str(e)[:200]}")
+                continue
+
+        if last_err is not None:
+            logger.exception("STT error in converse (all formats failed)")
+            raise HTTPException(status_code=502, detail=f"Error transcribiendo: {str(last_err)[:200]}")
     elif body.text_input and body.text_input.strip():
         user_text = body.text_input.strip()
 
