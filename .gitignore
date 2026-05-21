@@ -1,27 +1,87 @@
-# Ignored from git
+# ============================================================
+# RAX AI - .gitignore (raíz del repositorio)
+# ============================================================
+# ⚠️ NUNCA borrar este archivo. Protege tus secretos.
+
+# === Secretos / API Keys (CRÍTICO) ===
 .env
 .env.local
 .env.production
-*.pyc
+.env.*.local
+**/.env
+**/.env.local
+!**/.env.example
+*.pem
+*.key
+stripe_webhook_secret.txt
+google-play-service-account.json
+GoogleService-Info.plist
+google-services.json
+
+# === Python (backend) ===
 __pycache__/
-*.log
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+venv/
+.venv/
+env/
+
+# === Node.js / Expo (frontend) ===
 node_modules/
 .expo/
 .expo-shared/
+.metro-cache/
+web-build/
 dist/
-.DS_Store
+build/
+.next/
+.cache/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp.*
+expo-env.d.ts
+
+# === Mobile builds ===
 *.ipa
 *.aab
 *.apk
-.next/
-.cache/
-venv/
-.venv/
-*.pem
-*.key
-google-play-service-account.json
-stripe_webhook_secret.txt
-# Test artifacts
+*.dSYM.zip
+*.dSYM
+ios/Pods/
+android/.gradle/
+android/build/
+android/app/build/
+
+# === IDE / OS ===
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# === Testing / dev artifacts ===
+test_reports/
 .pytest_cache/
-backend_test.py
 tests/__pycache__/
+backend_test.py
+chat_image_test.py
+image_testing.md
+.emergent/
+
+# === Memory (sensible: passwords de testing) ===
+memory/test_credentials.md
+
+# === Editor backups ===
+*~
+*.bak
+*.orig
