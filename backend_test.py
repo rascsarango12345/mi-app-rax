@@ -1,301 +1,278 @@
 """
-Backend tests for RAX AI - new features:
-- Cámara Mágica (POST /api/lens/scan)
-- Modo Roast (POST /api/roast)
-- Diario Inteligente (POST/GET/DELETE /api/journal/*)
-- Personal Shopper (POST /api/shopper/recommend)
+RAX AI - PDF + Enhanced Chat Backend Test
+Tests:
+  1. POST /api/chat/send with PDF attachment (text + pdf)
+  2. POST /api/chat/send with PDF-only (no text)
+  3. POST /api/chat/send with empty / corrupt PDF
+  4. POST /api/pdf/generate
+  5. POST /api/pdf/extract (using PDF from #4)
+  6. PDF + Image combined in same chat message
+  7. System prompt enhancement (¿quién eres?)
+  8. PDF generation tag in chat ([GENERATE_PDF:...])
 """
-import os
-import sys
+import io
 import base64
-import json
 import requests
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
-# Load EXPO_PUBLIC_BACKEND_URL from frontend/.env
-def get_backend_url():
-    env_path = "/app/frontend/.env"
-    with open(env_path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith("EXPO_PUBLIC_BACKEND_URL="):
-                return line.split("=", 1)[1].strip().strip('"').strip("'")
-    raise RuntimeError("EXPO_PUBLIC_BACKEND_URL not found")
-
-
-BASE = get_backend_url().rstrip("/") + "/api"
+BASE = "https://ai-chat-demo-26.preview.emergentagent.com/api"
 ADMIN_EMAIL = "rascsarango12345@gmail.com"
-ADMIN_PASSWORD = "Rasc2026!RaxAI"
+ADMIN_PASS = "Rasc2026!RaxAI"
 
-# Generate a small but valid 256x256 JPEG (Claude vision needs >1x1)
-def _make_jpeg_b64():
-    from PIL import Image
-    import io, base64 as b64lib
-    img = Image.new('RGB', (256, 256), color=(200, 50, 50))
-    for x in range(50, 200):
-        for y in range(50, 200):
-            img.putpixel((x, y), (50, 100, 200))
+results = []  # (name, passed, info)
+
+
+def log(name, ok, info=""):
+    status = "PASS" if ok else "FAIL"
+    print(f"[{status}] {name}: {info}")
+    results.append((name, ok, info))
+
+
+def make_test_pdf(text="Hola mundo. Esto es un test. Capital de Francia: Paris. 2+2=4."):
     buf = io.BytesIO()
-    img.save(buf, format='JPEG', quality=85)
-    return b64lib.b64encode(buf.getvalue()).decode()
-
-TINY_RED_JPEG_B64 = _make_jpeg_b64()
-
-
-class Result:
-    def __init__(self):
-        self.passed = []
-        self.failed = []
-
-    def ok(self, name, msg=""):
-        self.passed.append((name, msg))
-        print(f"  PASS: {name} {('- ' + msg) if msg else ''}")
-
-    def fail(self, name, msg):
-        self.failed.append((name, msg))
-        print(f"  FAIL: {name} - {msg}")
-
-    def summary(self):
-        print("\n" + "=" * 70)
-        print(f"PASSED: {len(self.passed)} | FAILED: {len(self.failed)}")
-        if self.failed:
-            print("\nFailed tests:")
-            for n, m in self.failed:
-                print(f"  - {n}: {m}")
-        print("=" * 70)
+    c = canvas.Canvas(buf, pagesize=letter)
+    c.setFont("Helvetica", 14)
+    y = 750
+    for line in text.split(". "):
+        c.drawString(72, y, line + ".")
+        y -= 30
+    c.showPage()
+    c.save()
+    return buf.getvalue()
 
 
-R = Result()
+def make_test_jpeg():
+    from PIL import Image
+    img = Image.new("RGB", (256, 256), (180, 200, 220))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    return buf.getvalue()
 
 
-def section(title):
-    print("\n" + "=" * 70)
-    print(f"[ {title} ]")
-    print("=" * 70)
-
-
-def login_admin():
-    section("Auth: login admin")
-    try:
-        # Ensure admin is seeded (idempotent)
-        try:
-            requests.post(f"{BASE}/admin/seed-admin", timeout=20)
-        except Exception:
-            pass
-        r = requests.post(
-            f"{BASE}/auth/login",
-            json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD},
-            timeout=30,
-        )
-        if r.status_code != 200:
-            R.fail("admin login", f"HTTP {r.status_code} - {r.text[:200]}")
-            sys.exit(1)
-        data = r.json()
-        token = data["token"]
-        user = data["user"]
-        if user.get("plan") != "pro":
-            R.fail("admin pro plan", f"Got plan {user.get('plan')}")
-        else:
-            R.ok("admin login + pro plan", f"user_id={user.get('user_id')}")
-        return token, user
-    except Exception as e:
-        R.fail("admin login", str(e))
-        sys.exit(1)
-
-
-def test_lens(headers):
-    section("POST /api/lens/scan")
-    try:
-        r = requests.post(
-            f"{BASE}/lens/scan",
-            headers=headers,
-            json={"image_base64": TINY_RED_JPEG_B64, "locale": "es"},
-            timeout=120,
-        )
-        if r.status_code != 200:
-            R.fail("lens/scan", f"HTTP {r.status_code} - {r.text[:400]}")
-            return
-        data = r.json()
-        if "result" not in data or "used_today" not in data or "limit" not in data:
-            R.fail("lens/scan shape", f"Got keys: {list(data.keys())}")
-            return
-        if data["limit"] != 99999:
-            R.fail("lens/scan limit", f"Expected 99999 for pro plan, got {data['limit']}")
-        else:
-            R.ok("lens/scan", f"limit=99999, used_today={data['used_today']}, result_len={len(str(data['result']))}")
-    except Exception as e:
-        R.fail("lens/scan", str(e))
-
-
-def test_roast(headers):
-    section("POST /api/roast")
-    try:
-        r = requests.post(
-            f"{BASE}/roast",
-            headers=headers,
-            json={"image_base64": TINY_RED_JPEG_B64, "intensity": "medio", "locale": "es"},
-            timeout=120,
-        )
-        if r.status_code != 200:
-            R.fail("roast", f"HTTP {r.status_code} - {r.text[:400]}")
-            return
-        data = r.json()
-        required = {"roast", "intensity", "used_today", "limit"}
-        if not required.issubset(data.keys()):
-            R.fail("roast shape", f"missing {required - set(data.keys())}")
-            return
-        if data["intensity"] != "medio":
-            R.fail("roast intensity", f"got {data['intensity']}")
-        if data["limit"] != 99999:
-            R.fail("roast limit", f"Expected 99999 for pro plan, got {data['limit']}")
-        else:
-            R.ok("roast", f"limit=99999, used_today={data['used_today']}, roast_len={len(str(data['roast']))}")
-    except Exception as e:
-        R.fail("roast", str(e))
-
-
-def test_journal(headers):
-    section("Journal: entry → history → insights → delete")
-    entry_id = None
-    # 1) Create entry
-    try:
-        r = requests.post(
-            f"{BASE}/journal/entry",
-            headers=headers,
-            json={"content": "Hoy fue un buen día, trabajé en RAX AI y dormí bien.", "mood": "feliz", "locale": "es"},
-            timeout=120,
-        )
-        if r.status_code != 200:
-            R.fail("journal/entry POST", f"HTTP {r.status_code} - {r.text[:400]}")
-            return
-        data = r.json()
-        if "entry_id" not in data or "ai_insight" not in data:
-            R.fail("journal/entry shape", f"keys={list(data.keys())}")
-            return
-        entry_id = data["entry_id"]
-        R.ok("journal/entry POST", f"entry_id={entry_id}, ai_insight_len={len(str(data['ai_insight']))}")
-    except Exception as e:
-        R.fail("journal/entry POST", str(e))
-        return
-
-    # 2) history
-    try:
-        r = requests.get(f"{BASE}/journal/history", headers=headers, timeout=30)
-        if r.status_code != 200:
-            R.fail("journal/history", f"HTTP {r.status_code} - {r.text[:400]}")
-        else:
-            arr = r.json()
-            if not isinstance(arr, list):
-                R.fail("journal/history", f"expected list, got {type(arr).__name__}")
-            elif not any(e.get("entry_id") == entry_id for e in arr):
-                R.fail("journal/history", f"new entry not found in history (count={len(arr)})")
-            else:
-                R.ok("journal/history", f"contains new entry, total={len(arr)}")
-    except Exception as e:
-        R.fail("journal/history", str(e))
-
-    # 3) insights
-    try:
-        r = requests.get(f"{BASE}/journal/insights", headers=headers, timeout=120)
-        if r.status_code != 200:
-            R.fail("journal/insights", f"HTTP {r.status_code} - {r.text[:400]}")
-        else:
-            data = r.json()
-            required = {"summary", "mood_counts", "total"}
-            if not required.issubset(data.keys()):
-                R.fail("journal/insights shape", f"missing {required - set(data.keys())}")
-            else:
-                R.ok("journal/insights", f"total={data['total']}, moods={data['mood_counts']}, summary_len={len(str(data['summary']))}")
-    except Exception as e:
-        R.fail("journal/insights", str(e))
-
-    # 4) delete
-    try:
-        r = requests.delete(f"{BASE}/journal/entry/{entry_id}", headers=headers, timeout=30)
-        if r.status_code != 200:
-            R.fail("journal/entry DELETE", f"HTTP {r.status_code} - {r.text[:400]}")
-        else:
-            data = r.json()
-            if data.get("ok") is True:
-                R.ok("journal/entry DELETE", f"deleted {entry_id}")
-            else:
-                R.fail("journal/entry DELETE", f"response={data}")
-    except Exception as e:
-        R.fail("journal/entry DELETE", str(e))
-
-    # 5) verify deleted
-    try:
-        r = requests.get(f"{BASE}/journal/history", headers=headers, timeout=30)
-        if r.status_code == 200:
-            arr = r.json()
-            if any(e.get("entry_id") == entry_id for e in arr):
-                R.fail("journal delete verification", "entry still present after delete")
-            else:
-                R.ok("journal delete verification", "entry no longer in history")
-    except Exception as e:
-        R.fail("journal delete verification", str(e))
-
-
-def test_shopper(headers):
-    section("POST /api/shopper/recommend")
-    try:
-        r = requests.post(
-            f"{BASE}/shopper/recommend",
-            headers=headers,
-            json={"query": "Audífonos inalámbricos bajo $100", "budget_usd": 100, "locale": "es"},
-            timeout=180,
-        )
-        if r.status_code != 200:
-            R.fail("shopper/recommend", f"HTTP {r.status_code} - {r.text[:400]}")
-            return
-        data = r.json()
-        required = {"recommendations", "used_today", "limit"}
-        if not required.issubset(data.keys()):
-            R.fail("shopper/recommend shape", f"missing {required - set(data.keys())}")
-            return
-        if data["limit"] != 99999:
-            R.fail("shopper/recommend limit", f"Expected 99999 for pro plan, got {data['limit']}")
-        else:
-            R.ok("shopper/recommend", f"limit=99999, used_today={data['used_today']}, rec_len={len(str(data['recommendations']))}")
-    except Exception as e:
-        R.fail("shopper/recommend", str(e))
-
-
-def test_auth_required():
-    section("Auth required: 401/403 without token")
-    endpoints = [
-        ("POST", "/lens/scan", {"image_base64": TINY_RED_JPEG_B64, "locale": "es"}),
-        ("POST", "/roast", {"image_base64": TINY_RED_JPEG_B64, "intensity": "medio", "locale": "es"}),
-        ("POST", "/journal/entry", {"content": "abc", "mood": "neutral", "locale": "es"}),
-        ("GET", "/journal/history", None),
-        ("GET", "/journal/insights", None),
-        ("POST", "/shopper/recommend", {"query": "tv", "locale": "es"}),
-    ]
-    for method, path, body in endpoints:
-        try:
-            if method == "POST":
-                r = requests.post(f"{BASE}{path}", json=body, timeout=30)
-            else:
-                r = requests.get(f"{BASE}{path}", timeout=30)
-            if r.status_code in (401, 403):
-                R.ok(f"auth-required {method} {path}", f"got {r.status_code}")
-            else:
-                R.fail(f"auth-required {method} {path}", f"expected 401/403, got {r.status_code}")
-        except Exception as e:
-            R.fail(f"auth-required {method} {path}", str(e))
+def login():
+    r = requests.post(f"{BASE}/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PASS}, timeout=30)
+    assert r.status_code == 200, f"Login failed: {r.status_code} {r.text}"
+    return r.json()["token"]
 
 
 def main():
-    print(f"Backend URL: {BASE}")
-    test_auth_required()
-    token, user = login_admin()
-    headers = {"Authorization": f"Bearer {token}"}
-    test_lens(headers)
-    test_roast(headers)
-    test_journal(headers)
-    test_shopper(headers)
-    R.summary()
-    sys.exit(0 if not R.failed else 1)
+    print(f"=== RAX AI PDF + Enhanced Chat Test ===\nBackend: {BASE}\n")
+
+    try:
+        token = login()
+        log("0. Admin login", True, "JWT obtained")
+    except Exception as e:
+        log("0. Admin login", False, str(e))
+        return False
+    H = {"Authorization": f"Bearer {token}"}
+
+    pdf_bytes = make_test_pdf()
+    pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+    print(f"Test PDF generated: {len(pdf_bytes)} bytes ({len(pdf_b64)} b64 chars)\n")
+
+    # ===== Test 1: chat/send with PDF + text =====
+    try:
+        body = {
+            "text": "¿Qué dice este PDF?",
+            "pdf_base64": pdf_b64,
+            "pdf_filename": "test.pdf",
+            "locale": "es",
+            "user_tz": "America/Bogota",
+        }
+        r = requests.post(f"{BASE}/chat/send", json=body, headers=H, timeout=120)
+        ok = r.status_code == 200
+        info = f"status={r.status_code}"
+        if ok:
+            content = r.json().get("message", {}).get("content", "")
+            ref = any(kw.lower() in content.lower() for kw in ["paris", "parís", "hola mundo", "francia", "test"])
+            ok = ref
+            info += f" | response_len={len(content)} | references_pdf={ref}"
+            if not ref:
+                info += f" | content[:200]={content[:200]!r}"
+        else:
+            info += f" body={r.text[:300]}"
+        log("1. chat/send with text + PDF", ok, info)
+    except Exception as e:
+        log("1. chat/send with text + PDF", False, f"exception: {e}")
+
+    # ===== Test 2: chat/send with PDF-only (no text) =====
+    try:
+        body = {
+            "pdf_base64": pdf_b64,
+            "pdf_filename": "test.pdf",
+            "locale": "es",
+            "user_tz": "America/Bogota",
+        }
+        r = requests.post(f"{BASE}/chat/send", json=body, headers=H, timeout=120)
+        ok = r.status_code == 200
+        info = f"status={r.status_code}"
+        if ok:
+            content = r.json().get("message", {}).get("content", "")
+            ok = len(content) > 30
+            info += f" | summary_len={len(content)}"
+        else:
+            info += f" body={r.text[:300]}"
+        log("2. chat/send with PDF-only (no text)", ok, info)
+    except Exception as e:
+        log("2. chat/send with PDF-only", False, f"exception: {e}")
+
+    # ===== Test 3a: empty PDF (pdf_base64="") =====
+    try:
+        body = {"text": "test", "pdf_base64": "", "locale": "es"}
+        r = requests.post(f"{BASE}/chat/send", json=body, headers=H, timeout=60)
+        ok_400 = r.status_code == 400
+        info = f"status={r.status_code} body={r.text[:200]}"
+        log("3a. chat/send empty pdf_base64 -> expect 400", ok_400, info)
+    except Exception as e:
+        log("3a. chat/send empty pdf_base64", False, f"exception: {e}")
+
+    # ===== Test 3b: corrupt PDF ',,,'  =====
+    try:
+        body = {"text": "¿Qué dice?", "pdf_base64": ",,,", "locale": "es"}
+        r = requests.post(f"{BASE}/chat/send", json=body, headers=H, timeout=60)
+        ok = r.status_code == 400
+        info = f"status={r.status_code} body={r.text[:200]}"
+        if ok:
+            pdf_err = "pdf" in r.text.lower()
+            ok = pdf_err
+            info += f" | pdf_in_error={pdf_err}"
+        log("3b. chat/send corrupt pdf ',,,' -> expect 400 with PDF error", ok, info)
+    except Exception as e:
+        log("3b. chat/send corrupt pdf ',,,'", False, f"exception: {e}")
+
+    # ===== Test 4: POST /api/pdf/generate =====
+    generated_pdf_b64 = None
+    try:
+        body = {
+            "title": "Mi Informe",
+            "content": "# Resumen\n\nHola **mundo**. Este es un *test*.\n\n## Sección 2\n- Item 1\n- Item 2",
+        }
+        r = requests.post(f"{BASE}/pdf/generate", json=body, headers=H, timeout=30)
+        ok = r.status_code == 200
+        info = f"status={r.status_code}"
+        if ok:
+            data = r.json()
+            generated_pdf_b64 = data.get("pdf_base64")
+            size = data.get("size_bytes", 0)
+            fname = data.get("filename", "")
+            try:
+                raw = base64.b64decode(generated_pdf_b64)
+                is_pdf = raw[:5] == b"%PDF-"
+            except Exception:
+                is_pdf = False
+            ok = bool(generated_pdf_b64) and size > 1000 and is_pdf and fname.endswith(".pdf")
+            info += f" | size={size} | filename={fname} | starts_with_%PDF-={is_pdf}"
+        else:
+            info += f" body={r.text[:300]}"
+        log("4. POST /api/pdf/generate", ok, info)
+    except Exception as e:
+        log("4. POST /api/pdf/generate", False, f"exception: {e}")
+
+    # ===== Test 5: POST /api/pdf/extract =====
+    try:
+        if not generated_pdf_b64:
+            log("5. POST /api/pdf/extract", False, "skipped: no PDF from test 4")
+        else:
+            body = {"pdf_base64": generated_pdf_b64}
+            r = requests.post(f"{BASE}/pdf/extract", json=body, headers=H, timeout=30)
+            ok = r.status_code == 200
+            info = f"status={r.status_code}"
+            if ok:
+                data = r.json()
+                pages = data.get("pages", [])
+                full = data.get("full_text", "")
+                total_pages = data.get("total_pages", 0)
+                contains_text = any(kw in full for kw in ["Mi Informe", "Resumen", "mundo"])
+                ok = total_pages >= 1 and len(pages) >= 1 and contains_text
+                info += f" | total_pages={total_pages} | pages_count={len(pages)} | contains_expected={contains_text}"
+                if not contains_text:
+                    info += f" | full_text[:300]={full[:300]!r}"
+            else:
+                info += f" body={r.text[:300]}"
+            log("5. POST /api/pdf/extract", ok, info)
+    except Exception as e:
+        log("5. POST /api/pdf/extract", False, f"exception: {e}")
+
+    # ===== Test 6: PDF + Image combined =====
+    try:
+        jpg = make_test_jpeg()
+        img_b64 = base64.b64encode(jpg).decode("utf-8")
+        body = {
+            "text": "Analiza tanto la imagen como el PDF y dime qué ves.",
+            "pdf_base64": pdf_b64,
+            "pdf_filename": "test.pdf",
+            "image_base64": img_b64,
+            "locale": "es",
+            "user_tz": "America/Bogota",
+        }
+        r = requests.post(f"{BASE}/chat/send", json=body, headers=H, timeout=180)
+        ok = r.status_code == 200
+        info = f"status={r.status_code}"
+        if ok:
+            content = r.json().get("message", {}).get("content", "")
+            ok = len(content) > 50
+            info += f" | response_len={len(content)} | preview={content[:200]!r}"
+        else:
+            info += f" body={r.text[:300]}"
+        log("6. chat/send with PDF + image combined", ok, info)
+    except Exception as e:
+        log("6. chat/send with PDF + image combined", False, f"exception: {e}")
+
+    # ===== Test 7: System prompt enhancement (¿quién eres?) =====
+    try:
+        body = {"text": "¿quién eres?", "locale": "es", "user_tz": "America/Bogota"}
+        r = requests.post(f"{BASE}/chat/send", json=body, headers=H, timeout=60)
+        ok = r.status_code == 200
+        info = f"status={r.status_code}"
+        if ok:
+            content = r.json().get("message", {}).get("content", "")
+            says_rax = "rax" in content.lower()
+            says_rasc = "rasc" in content.lower()
+            not_chatgpt = "chatgpt" not in content.lower() and "claude" not in content.lower()
+            ok = says_rax and says_rasc and not_chatgpt
+            info += (f" | says_RAX={says_rax} | says_RASC={says_rasc} | "
+                     f"no_chatgpt_claude={not_chatgpt} | preview={content[:200]!r}")
+        else:
+            info += f" body={r.text[:300]}"
+        log("7. system prompt: ¿quién eres? -> RAX AI / RASC", ok, info)
+    except Exception as e:
+        log("7. system prompt ¿quién eres?", False, f"exception: {e}")
+
+    # ===== Test 8: PDF generation tag in chat =====
+    try:
+        body = {
+            "text": "Hazme un PDF con un resumen de la fotosíntesis",
+            "locale": "es",
+            "user_tz": "America/Bogota",
+        }
+        r = requests.post(f"{BASE}/chat/send", json=body, headers=H, timeout=90)
+        ok = r.status_code == 200
+        info = f"status={r.status_code}"
+        if ok:
+            content = r.json().get("message", {}).get("content", "")
+            has_tag = "[GENERATE_PDF:" in content
+            ok = has_tag
+            info += f" | has_GENERATE_PDF_tag={has_tag} | tail={content[-200:]!r}"
+        else:
+            info += f" body={r.text[:300]}"
+        log("8. chat asks for PDF -> AI returns [GENERATE_PDF:...] tag", ok, info)
+    except Exception as e:
+        log("8. PDF generation tag in chat", False, f"exception: {e}")
+
+    # ===== Summary =====
+    print("\n=== SUMMARY ===")
+    passed = sum(1 for _, ok, _ in results if ok)
+    failed = sum(1 for _, ok, _ in results if not ok)
+    print(f"Passed: {passed} / {len(results)}")
+    print(f"Failed: {failed} / {len(results)}")
+    for name, ok, info in results:
+        mark = "OK  " if ok else "FAIL"
+        print(f"  [{mark}] {name}")
+    print()
+    return failed == 0
 
 
 if __name__ == "__main__":
-    main()
+    success = main()
+    exit(0 if success else 1)

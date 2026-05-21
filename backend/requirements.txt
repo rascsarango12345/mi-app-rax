@@ -28,3 +28,5 @@ emergentintegrations==0.1.0
 stripe==15.1.0
 duckduckgo-search==6.3.0
 gunicorn==21.2.0
+pypdf==6.11.0
+reportlab==4.5.1

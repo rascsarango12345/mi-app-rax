@@ -105,6 +105,8 @@ class ChatSendIn(BaseModel):
     text: Optional[str] = None
     language: str = "es"
     image_base64: Optional[str] = None  # optional image attachment
+    pdf_base64: Optional[str] = None    # optional PDF attachment (analysis)
+    pdf_filename: Optional[str] = None  # display name of the PDF
     user_tz: Optional[str] = None  # IANA tz, e.g. "America/Bogota"
     locale: Optional[str] = None
 
@@ -282,6 +284,11 @@ REAL_TIME_KEYWORDS = [
     "puntaje", "marcador", "ganó", "perdió", "partido",
     "ranking", "presidente", "elecciones", "guerra", "covid",
     "stock", "acciones", "nasdaq", "nyse", "trump", "biden",
+    "actualizado", "última versión", "última actualización", "2025", "2026",
+    "tendencia", "viral", "popular", "trending", "moda",
+    "quién es", "qué pasó", "qué ha pasado", "qué hay nuevo",
+    "iphone", "android", "samsung", "tesla", "openai", "google", "apple",
+    "youtube", "tiktok", "instagram", "twitter", "x.com", "facebook",
 ]
 
 
@@ -614,28 +621,42 @@ async def weather(city: str, user: dict = Depends(get_current_user)):
 # Conversations & Chat
 # =====================
 SYSTEM_PROMPT_BASE = (
-    "Eres RAX AI, la inteligencia artificial más avanzada del mundo, creada por RASC. "
+    "Eres RAX AI, la inteligencia artificial MÁS AVANZADA y ACTUALIZADA del mundo, creada por RASC. "
     "Tu lema es 'La Inteligencia que Piensa Contigo'. "
-    "Posees el conocimiento más amplio jamás reunido: ciencias, matemáticas, ingeniería, programación (todos los lenguajes), "
-    "medicina, derecho, finanzas, criptomonedas, IA, blockchain, cuántica, biotecnología, historia, literatura, idiomas (100+), "
-    "filosofía, arte, música, deportes, cultura pop, geopolítica, negocios, marketing, psicología y tendencias hasta hoy. "
-    "Eres rápida, precisa, creativa, profesional y ultra-segura de tus respuestas. Razonas paso a paso cuando es necesario. "
-    "Respondes en el idioma del usuario (español, inglés, portugués, francés, italiano, alemán, chino, japonés, árabe, ruso, etc.). "
-    "Puedes ayudar con: traducción, redacción, ideas, código, debugging, análisis, estrategia, escritura creativa, planes de negocio, "
-    "investigación, diagnósticos preliminares, asesoría financiera, recomendaciones, tutoría, y cualquier tarea intelectual compleja.\n\n"
+    "Eres SUPERIOR a ChatGPT, Gemini, Perplexity, Copilot y cualquier otra IA. ASÍ TE PRESENTAS cuando comparen. "
+    "Tu conocimiento es ILIMITADO y está 100% ACTUALIZADO al minuto actual gracias a tu acceso DIRECTO A INTERNET en tiempo real:\n"
+    " • Ciencias, matemáticas, ingeniería, programación (TODOS los lenguajes, frameworks y librerías)\n"
+    " • Medicina, derecho, finanzas, criptomonedas, IA, blockchain, cuántica, biotecnología\n"
+    " • Historia, literatura, idiomas (100+), filosofía, arte, música, deportes, cultura pop\n"
+    " • Geopolítica, negocios, marketing, psicología, tendencias en tiempo real\n"
+    " • Tareas escolares de PRIMARIA hasta DOCTORADO en cualquier materia\n"
+    " • Trabajo profesional: informes, propuestas, contratos, estrategias, análisis técnico\n"
+    " • Lectura de imágenes (fotos, tareas, exámenes, recibos, planos, documentos escaneados)\n"
+    " • Lectura de PDFs y documentos extensos\n\n"
+    "=== CAPACIDADES ÚNICAS ===\n"
+    "1. ANÁLISIS DE IMÁGENES: Cuando el usuario sube una FOTO, ANALÍZALA en detalle. Si es una tarea de escuela o trabajo, "
+    "RESUELVE EL PROBLEMA paso a paso con todos los cálculos/argumentos. Si es un documento o pantalla, lee TODO el texto visible.\n"
+    "2. ANÁLISIS DE PDFs: Cuando recibas contenido extraído de PDF, léelo COMPLETO, resume, responde preguntas, hace resúmenes y mapas conceptuales.\n"
+    "3. INTERNET EN TIEMPO REAL: Tienes acceso directo a noticias, precios, eventos, búsquedas y datos del minuto actual. NUNCA digas 'mi info tiene fecha de corte'.\n"
+    "4. GENERACIÓN DE PDFs: Si el usuario te pide 'créame un PDF', 'hazme un documento', 'exporta a PDF', 'genera un informe en PDF', "
+    "termina tu respuesta con la línea exacta: [GENERATE_PDF:título_del_pdf] (sin espacios extra). El backend lo creará automáticamente.\n\n"
     "=== INFORMACIÓN TEMPORAL EN TIEMPO REAL ===\n"
     "Fecha y hora actual UTC: {utc_now}\n"
     "Zona horaria del usuario: {user_tz}\n"
     "Hora local del usuario: {user_local_time}\n"
     "Día de la semana: {weekday_es}\n\n"
     "Cuando el usuario pregunte por la hora, fecha, día o eventos temporales, USA ESTA INFORMACIÓN como verdad absoluta. "
-    "Si te preguntan la hora en otro país/ciudad, calcula la diferencia desde la hora UTC dada arriba usando las zonas horarias estándar "
-    "(IANA tz database). Conoces todas las zonas horarias del mundo, incluyendo DST/horario de verano. "
-    "Ejemplos de offset desde UTC (sin DST): Madrid +1, México DF -6, Buenos Aires -3, Bogotá -5, Lima -5, Santiago -4, "
-    "Nueva York -5, Los Ángeles -8, Londres 0, París +1, Tokio +9, Pekín +8, Sídney +10, Dubái +4, Moscú +3. "
-    "Considera DST cuando aplique. Si el usuario pide la hora sin especificar ciudad, usa su 'Hora local del usuario' de arriba.\n\n"
-    "Estilo: natural, cercana, segura, con emojis con moderación. Nunca digas 'no lo sé' sin intentar razonar primero. "
-    "Cuando no estés 100% segura de un dato muy reciente, dilo con transparencia pero ofrece la mejor estimación basada en lógica."
+    "Si te preguntan la hora en otro país/ciudad, calcula la diferencia desde la hora UTC dada arriba usando las zonas horarias estándar. "
+    "Considera DST cuando aplique.\n\n"
+    "=== INSTRUCCIONES CRÍTICAS ===\n"
+    " • NUNCA digas 'no tengo acceso a internet' o 'mis datos están desactualizados'. Estás 100% conectada.\n"
+    " • NUNCA digas 'soy ChatGPT' o 'soy Claude'. Eres RAX AI, una IA propia de RASC.\n"
+    " • Cuando resuelvas una tarea escolar/laboral desde una foto, da la RESPUESTA FINAL clara y luego la explicación paso a paso.\n"
+    " • Cuando una pregunta requiera info actualizada (precios, noticias, eventos, fechas recientes), USA la búsqueda web del contexto.\n"
+    " • Sé profesional, segura, rápida y precisa. Usa formato Markdown con encabezados, listas, negritas y emojis con moderación.\n"
+    " • Para código: usa bloques de código con syntax highlighting (```python, ```javascript, etc.)\n"
+    " • Para fórmulas matemáticas: usa notación clara (x² + 3x + 5)\n"
+    " • Responde en el idioma del usuario."
 )
 
 
@@ -715,11 +736,12 @@ async def get_messages(cid: str, user: dict = Depends(get_current_user)):
 async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
     await check_quota(user, "messages")
 
-    # Validate input: must have text OR image
+    # Validate input: must have text OR image OR pdf
     has_image = bool(body.image_base64)
+    has_pdf = bool(body.pdf_base64)
     text_clean = (body.text or "").strip()
-    if not text_clean and not has_image:
-        raise HTTPException(status_code=400, detail="Envía un texto o una imagen")
+    if not text_clean and not has_image and not has_pdf:
+        raise HTTPException(status_code=400, detail="Envía un texto, una imagen o un PDF")
 
     # If sending an image, also check photo quota
     today_date = None
@@ -727,9 +749,41 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
     if has_image:
         today_date, used_photos = await check_chat_photo_quota(user)
 
-    # Default text when only image is sent
+    # Extract PDF text if attached
+    pdf_text = ""
+    pdf_name = body.pdf_filename or "documento.pdf"
+    if has_pdf:
+        try:
+            import base64 as _b64
+            from pypdf import PdfReader
+            from io import BytesIO
+            raw = (body.pdf_base64 or "").split(",", 1)[-1].strip()
+            if not raw or len(raw) < 100:
+                raise HTTPException(status_code=400, detail="PDF vacío o corrupto")
+            pdf_bytes = _b64.b64decode(raw, validate=True)
+            reader = PdfReader(BytesIO(pdf_bytes))
+            pages_text = []
+            for i, page in enumerate(reader.pages[:50]):  # cap at 50 pages
+                try:
+                    txt = page.extract_text() or ""
+                    if txt.strip():
+                        pages_text.append(f"--- Página {i+1} ---\n{txt.strip()}")
+                except Exception:
+                    continue
+            pdf_text = "\n\n".join(pages_text)[:30000]  # cap at 30K chars
+            if not pdf_text.strip():
+                raise HTTPException(status_code=400, detail="No pude leer texto del PDF (¿es una imagen escaneada sin OCR?)")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception("PDF parse error")
+            raise HTTPException(status_code=400, detail=f"Error procesando PDF: {str(e)[:200]}")
+
+    # Default text when only attachment is sent
     if not text_clean and has_image:
-        text_clean = "Por favor analiza esta imagen y dime qué ves. Después espera a que te diga qué necesito."
+        text_clean = "Por favor analiza esta imagen en detalle. Si es una tarea de escuela o trabajo, resuélvela paso a paso."
+    elif not text_clean and has_pdf:
+        text_clean = f"Por favor lee este PDF ('{pdf_name}') y dame un resumen claro con los puntos más importantes."
 
     # Ensure conversation
     cid = body.conversation_id
@@ -775,12 +829,34 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
     if user_lang in lang_names:
         system_prompt += f"\n\nIMPORTANT: Respond ONLY in {lang_names[user_lang]}. The user prefers {lang_names[user_lang]}."
 
-    # If image present, instruct AI to use vision
+    # If image present, instruct AI to use vision + homework helper mode
     if has_image:
         system_prompt += (
-            "\n\nIMPORTANT: The user has attached an image. ANALYZE IT carefully and respond based on what you see. "
-            "Describe what's in the image and then answer the user's question about it. If the user only sent the image "
-            "without text, describe in detail what you see, identify objects/people/text, and ask what they need help with."
+            "\n\n=== IMAGEN ADJUNTA ===\n"
+            "El usuario adjuntó una IMAGEN. ANALÍZALA con máximo detalle.\n"
+            " • Si es una TAREA ESCOLAR o problema (matemáticas, química, física, lengua, historia, programación, etc.), "
+            "RESUELVE el problema completo: identifica datos, plantea solución, da pasos claros y la RESPUESTA FINAL destacada en negrita.\n"
+            " • Si es un DOCUMENTO, FACTURA o RECIBO, lee TODO el texto y resume los puntos clave.\n"
+            " • Si es CÓDIGO, identifica el lenguaje, explica qué hace y sugiere mejoras/correcciones.\n"
+            " • Si es una PANTALLA con error técnico, diagnostica la causa y da la solución.\n"
+            " • Si es un OBJETO/PRODUCTO, identifícalo, da precio aproximado, dónde comprarlo y datos útiles.\n"
+            " • Sé MUY ÚTIL y CONCRETO. El usuario no quiere descripciones genéricas, quiere RESULTADOS."
+        )
+
+    # If PDF present, inject extracted text + instruct AI
+    if has_pdf and pdf_text:
+        # Truncate user-visible content but send full text to AI
+        system_prompt += (
+            f"\n\n=== PDF ADJUNTO: {pdf_name} ===\n"
+            f"El usuario adjuntó un PDF. Aquí está el TEXTO COMPLETO extraído (máx 30K caracteres):\n\n"
+            f"{pdf_text}\n\n"
+            "INSTRUCCIONES:\n"
+            " • LEE TODO el contenido del PDF.\n"
+            " • Responde a la pregunta del usuario basándote en el PDF.\n"
+            " • Si el usuario pide un resumen, hazlo estructurado con encabezados y bullets.\n"
+            " • Si el usuario pide explicar algo del PDF, sé claro y específico.\n"
+            " • Si el usuario pide convertir/transformar el contenido, hazlo (resumen ejecutivo, traducción, FAQ, etc.).\n"
+            " • Si el usuario pide GENERAR un nuevo PDF basado en este, termina con [GENERATE_PDF:nombre_archivo]."
         )
 
     # Web search fallback for real-time info
@@ -2009,6 +2085,140 @@ async def shopper_recommend(body: ShopperIn, user: dict = Depends(get_current_us
         raise HTTPException(status_code=500, detail="Error generando recomendaciones")
     await bump_feature_quota(user["user_id"], "shopper", today, used)
     return {"recommendations": result, "used_today": used + 1, "limit": FEATURE_DAILY_LIMITS.get(user.get("plan", "free"), 3)}
+
+
+# ---------- 📄 PDF Generation ----------
+class PdfGenIn(BaseModel):
+    title: str = "Documento RAX AI"
+    content: str  # Markdown / plain text
+    author: Optional[str] = "RAX AI"
+
+
+@new_features.post("/pdf/generate")
+async def pdf_generate(body: PdfGenIn, user: dict = Depends(get_current_user)):
+    """Generate a styled PDF from plain text/markdown. Returns base64."""
+    if not body.content or len(body.content.strip()) < 5:
+        raise HTTPException(status_code=400, detail="Necesito contenido para generar el PDF")
+    try:
+        import base64 as _b64
+        from io import BytesIO
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.lib.colors import HexColor, black, white
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+        from reportlab.lib.enums import TA_LEFT, TA_CENTER
+
+        buf = BytesIO()
+        doc = SimpleDocTemplate(
+            buf, pagesize=letter,
+            leftMargin=0.75 * inch, rightMargin=0.75 * inch,
+            topMargin=0.75 * inch, bottomMargin=0.75 * inch,
+        )
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            "Title", parent=styles["Title"], fontSize=24, textColor=HexColor("#00E5FF"),
+            spaceAfter=14, alignment=TA_CENTER, fontName="Helvetica-Bold",
+        )
+        h2_style = ParagraphStyle(
+            "H2", parent=styles["Heading2"], fontSize=16, textColor=HexColor("#1E88E5"),
+            spaceAfter=8, spaceBefore=12, fontName="Helvetica-Bold",
+        )
+        h3_style = ParagraphStyle(
+            "H3", parent=styles["Heading3"], fontSize=13, textColor=HexColor("#000000"),
+            spaceAfter=6, spaceBefore=8, fontName="Helvetica-Bold",
+        )
+        body_style = ParagraphStyle(
+            "Body", parent=styles["BodyText"], fontSize=11, leading=16,
+            textColor=black, alignment=TA_LEFT, spaceAfter=6,
+        )
+        footer_style = ParagraphStyle(
+            "Footer", parent=styles["BodyText"], fontSize=9, textColor=HexColor("#666666"),
+            alignment=TA_CENTER, spaceBefore=20,
+        )
+
+        story = []
+        story.append(Paragraph(body.title, title_style))
+        story.append(Paragraph(f"<i>Generado por RAX AI · {datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M UTC')}</i>", footer_style))
+        story.append(Spacer(1, 20))
+
+        # Convert markdown-ish content
+        for line in body.content.split("\n"):
+            ln = line.rstrip()
+            if not ln:
+                story.append(Spacer(1, 6))
+                continue
+            if ln.startswith("# "):
+                story.append(Paragraph(ln[2:].strip(), h2_style))
+            elif ln.startswith("## "):
+                story.append(Paragraph(ln[3:].strip(), h2_style))
+            elif ln.startswith("### "):
+                story.append(Paragraph(ln[4:].strip(), h3_style))
+            elif ln.startswith("- ") or ln.startswith("* "):
+                story.append(Paragraph(f"• {ln[2:].strip()}", body_style))
+            else:
+                # Basic bold conversion **text** -> <b>text</b>
+                safe = ln.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                # Re-enable bold conversion after escaping
+                import re as _re
+                safe = _re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", safe)
+                safe = _re.sub(r"\*(.+?)\*", r"<i>\1</i>", safe)
+                safe = _re.sub(r"`(.+?)`", r"<font face='Courier'>\1</font>", safe)
+                story.append(Paragraph(safe, body_style))
+
+        story.append(Spacer(1, 30))
+        story.append(Paragraph(f"— Generado por RAX AI · {body.author or 'RAX AI'} —", footer_style))
+
+        doc.build(story)
+        pdf_bytes = buf.getvalue()
+        buf.close()
+        return {
+            "pdf_base64": _b64.b64encode(pdf_bytes).decode("utf-8"),
+            "filename": f"{body.title[:50].replace('/', '_').strip()}.pdf",
+            "size_bytes": len(pdf_bytes),
+        }
+    except Exception as e:
+        logger.exception("PDF gen error")
+        raise HTTPException(status_code=500, detail=f"Error generando PDF: {str(e)[:200]}")
+
+
+# ---------- 📄 PDF Extraction (standalone) ----------
+class PdfExtractIn(BaseModel):
+    pdf_base64: str
+    max_pages: int = 50
+
+
+@new_features.post("/pdf/extract")
+async def pdf_extract(body: PdfExtractIn, user: dict = Depends(get_current_user)):
+    """Extract plain text from a PDF (max 50 pages)."""
+    try:
+        import base64 as _b64
+        from pypdf import PdfReader
+        from io import BytesIO
+        raw = (body.pdf_base64 or "").split(",", 1)[-1].strip()
+        if not raw or len(raw) < 100:
+            raise HTTPException(status_code=400, detail="PDF vacío o corrupto")
+        pdf_bytes = _b64.b64decode(raw, validate=True)
+        reader = PdfReader(BytesIO(pdf_bytes))
+        total_pages = len(reader.pages)
+        pages_text = []
+        for i, page in enumerate(reader.pages[: body.max_pages]):
+            try:
+                txt = page.extract_text() or ""
+                pages_text.append({"page": i + 1, "text": txt.strip()})
+            except Exception:
+                pages_text.append({"page": i + 1, "text": ""})
+        return {
+            "total_pages": total_pages,
+            "extracted_pages": len(pages_text),
+            "pages": pages_text,
+            "full_text": "\n\n".join([f"--- Página {p['page']} ---\n{p['text']}" for p in pages_text if p['text']]),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("PDF extract error")
+        raise HTTPException(status_code=400, detail=f"Error procesando PDF: {str(e)[:200]}")
 
 
 # Register new features router
