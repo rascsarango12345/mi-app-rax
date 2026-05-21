@@ -17,7 +17,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://YOUR_PRODUCTION_BACKEND.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://raxai-backendd.onrender.com"
       }
     }
   },
