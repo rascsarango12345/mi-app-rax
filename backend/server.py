@@ -16,6 +16,7 @@ import jwt
 import httpx
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field, EmailStr
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -429,6 +430,224 @@ async def health_check():
         "version": "1.0.0",
         "service": "rax-ai-backend",
     }
+
+
+# ============================================================
+# 📜 LEGAL PAGES — Privacy Policy & Terms of Service (HTML)
+# These are required URLs for App Store Connect submission.
+# Public, no auth, served as plain HTML so reviewers can open them in a browser.
+# ============================================================
+
+_LEGAL_CSS = """
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+         max-width: 760px; margin: 0 auto; padding: 28px 22px 80px; line-height: 1.65;
+         color: #1a1a1a; background: #ffffff; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0d0d0d; color: #e8e8e8; }
+    a { color: #4dd0e1; }
+    .badge { background: rgba(77,208,225,0.12); border-color: rgba(77,208,225,0.35); color: #4dd0e1; }
+    hr { border-color: rgba(255,255,255,0.1); }
+  }
+  h1 { font-size: 28px; margin-bottom: 4px; }
+  h2 { font-size: 20px; margin-top: 32px; border-bottom: 1px solid rgba(127,127,127,0.25); padding-bottom: 6px; }
+  h3 { font-size: 16px; margin-top: 22px; }
+  p, li { font-size: 15.5px; }
+  ul { padding-left: 22px; }
+  .muted { color: #888; font-size: 13px; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px;
+           border: 1px solid rgba(0,128,128,0.35); background: rgba(0,128,128,0.08);
+           color: #008080; font-weight: 600; letter-spacing: 0.4px; }
+  .header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .logo { font-size: 22px; font-weight: 800; letter-spacing: 1px;
+          background: linear-gradient(90deg, #00E5FF, #00FF9D); -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent; }
+  hr { border: 0; border-top: 1px solid rgba(0,0,0,0.08); margin: 30px 0; }
+  a { color: #008080; }
+</style>
+"""
+
+_PRIVACY_HTML = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Privacy Policy — RAX AI</title>{_LEGAL_CSS}</head><body>
+<div class="header"><span class="logo">RAX AI</span><span class="badge">PRIVACY POLICY</span></div>
+<p class="muted">Effective date: May 21, 2026 · Last updated: May 21, 2026</p>
+<h1>Privacy Policy</h1>
+<p>RAX AI ("we", "our", "us") is operated by RASC / Sarango Cabrera. This Privacy Policy describes how we collect, use,
+and protect your information when you use the RAX AI mobile and web application (the "Service").</p>
+
+<h2>1. Information We Collect</h2>
+<ul>
+  <li><strong>Account data:</strong> email address, display name, and authentication identifier (Google sign-in ID, password hash, or guest token).</li>
+  <li><strong>Conversation data:</strong> the messages, images, audio recordings, and PDF files you submit to the AI features, plus the AI-generated responses.</li>
+  <li><strong>Subscription data:</strong> billing plan tier, subscription status and renewal dates (handled by Apple In-App Purchases on iOS; Stripe on Web/Android). We never see or store full card numbers.</li>
+  <li><strong>Device data:</strong> device type, OS version, locale, time zone, and crash diagnostics.</li>
+  <li><strong>Usage data:</strong> number of messages, images, and photos used per day (to enforce plan quotas).</li>
+</ul>
+
+<h2>2. How We Use Your Information</h2>
+<ul>
+  <li>To provide the AI conversation, image generation, voice, file analysis, and Studio features.</li>
+  <li>To enforce plan limits (Free, Premium, Pro) and process subscription purchases.</li>
+  <li>To improve the Service, detect abuse, and respond to support requests.</li>
+  <li>To comply with legal obligations.</li>
+</ul>
+
+<h2>3. Third-Party Services We Share Data With</h2>
+<p>To deliver the AI features, the content you submit is processed by these providers under their own privacy policies:</p>
+<ul>
+  <li><strong>Anthropic (Claude):</strong> text chat processing — <a href="https://www.anthropic.com/legal/privacy">anthropic.com/legal/privacy</a></li>
+  <li><strong>OpenAI (Whisper STT &amp; TTS):</strong> voice transcription and synthesis — <a href="https://openai.com/policies/privacy-policy">openai.com/policies/privacy-policy</a></li>
+  <li><strong>Google (Gemini Nano Banana):</strong> image generation — <a href="https://policies.google.com/privacy">policies.google.com/privacy</a></li>
+  <li><strong>Apple In-App Purchases:</strong> iOS subscription billing — <a href="https://www.apple.com/legal/privacy/">apple.com/legal/privacy</a></li>
+  <li><strong>Stripe:</strong> web/Android subscription billing — <a href="https://stripe.com/privacy">stripe.com/privacy</a></li>
+  <li><strong>MongoDB Atlas:</strong> encrypted database hosting.</li>
+</ul>
+<p>We do <strong>NOT</strong> sell your personal data to anyone. We do not show ads.</p>
+
+<h2>4. Data Retention</h2>
+<ul>
+  <li>Conversations are kept while you have an active account so you can revisit them. You can delete any conversation at any time from inside the app, which permanently removes its messages from our database.</li>
+  <li>Account deletion: you can request full account &amp; data deletion at <a href="mailto:support@raxai.app">support@raxai.app</a> or from the in-app Support screen. We delete your data within 30 days.</li>
+</ul>
+
+<h2>5. Children's Privacy</h2>
+<p>RAX AI is rated 12+. The Service is not directed to children under 13. We do not knowingly collect personal information from children under 13. If you believe a child has provided us with personal data, contact us and we will delete it.</p>
+
+<h2>6. Security</h2>
+<p>We use HTTPS/TLS for all data in transit, hashed passwords (bcrypt), JWT-based session tokens, and encrypted database storage. No system is 100% secure, but we apply industry-standard best practices.</p>
+
+<h2>7. Your Rights</h2>
+<p>Depending on your jurisdiction (GDPR, CCPA, etc.) you may have the right to access, correct, export, or delete your personal data. Email <a href="mailto:support@raxai.app">support@raxai.app</a> to exercise these rights.</p>
+
+<h2>8. Changes to This Policy</h2>
+<p>We may update this Policy from time to time. The "Last updated" date at the top will change. Material changes will be announced in the app.</p>
+
+<h2>9. Contact</h2>
+<p>RAX AI — operated by RASC (Sarango Cabrera)<br/>
+Email: <a href="mailto:support@raxai.app">support@raxai.app</a></p>
+
+<hr/>
+<p class="muted">© 2026 RAX AI by RASC. All rights reserved.</p>
+</body></html>
+"""
+
+_TERMS_HTML = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Terms of Service — RAX AI</title>{_LEGAL_CSS}</head><body>
+<div class="header"><span class="logo">RAX AI</span><span class="badge">TERMS OF SERVICE</span></div>
+<p class="muted">Effective date: May 21, 2026 · Last updated: May 21, 2026</p>
+<h1>Terms of Service (EULA)</h1>
+<p>Welcome to RAX AI. By creating an account or using the Service you agree to these Terms of Service ("Terms").
+If you do not agree, do not use the Service. This document also serves as the End User License Agreement (EULA)
+required by the Apple App Store.</p>
+
+<h2>1. The Service</h2>
+<p>RAX AI is an AI assistant that provides conversational chat, image generation, voice conversation, file analysis,
+content creator tools, and "Studio" features (AR lens, journal, roast mode, personal shopper). The Service may use
+third-party AI models (Anthropic Claude, OpenAI Whisper/TTS, Google Gemini) to fulfill your requests.</p>
+
+<h2>2. Account &amp; Eligibility</h2>
+<ul>
+  <li>You must be at least 13 years old (or the minimum age in your country) to create an account.</li>
+  <li>You are responsible for keeping your password safe. You are responsible for all activity on your account.</li>
+  <li>One person per account. You may not share your account with others.</li>
+</ul>
+
+<h2>3. Subscriptions &amp; Billing</h2>
+<ul>
+  <li><strong>Plans:</strong> Free, Premium ($5.99 USD/month), Pro ($9.99 USD/month). Prices may vary by country.</li>
+  <li><strong>Auto-renewal:</strong> subscriptions automatically renew at the end of each billing period unless canceled at least 24 hours before the renewal date. Payment is charged at the start of each period.</li>
+  <li><strong>iOS:</strong> billing is handled by Apple. Manage or cancel anytime in your Apple ID → Subscriptions settings.</li>
+  <li><strong>Web / Android:</strong> billing is handled by Stripe. Manage from your account or by contacting support.</li>
+  <li><strong>Refunds:</strong> handled per platform policy (Apple App Store for iOS, our standard policy for Web/Android — contact support within 14 days for refund requests).</li>
+</ul>
+
+<h2>4. Acceptable Use — What You May NOT Do</h2>
+<p>You agree NOT to use RAX AI to:</p>
+<ul>
+  <li>Generate, request, or distribute illegal content, including child sexual abuse material (CSAM), terrorist content, or content that incites violence or hatred against any group.</li>
+  <li>Generate sexually explicit content involving any real person without their consent or any minor under any circumstance.</li>
+  <li>Create deepfakes, identity-theft material, defamatory content, or misleading deepfakes of real people.</li>
+  <li>Attempt to extract another user's data, reverse-engineer the Service, or bypass our quota or safety systems.</li>
+  <li>Use the Service to spam, phish, or send unsolicited bulk communications.</li>
+  <li>Use the Service for any activity that violates applicable laws, including export-control or sanctions laws.</li>
+</ul>
+<p>We use a zero-tolerance policy for objectionable user-generated content. Violations may result in immediate account
+termination without refund and reporting to authorities where required by law. To report abuse, email
+<a href="mailto:support@raxai.app">support@raxai.app</a>.</p>
+
+<h2>5. AI Output Disclaimer</h2>
+<p>The AI responses are generated by machine-learning models and may be inaccurate, incomplete, biased, or outdated.
+RAX AI is NOT a substitute for professional medical, legal, financial, or psychological advice. Always verify
+important information with qualified professionals. You are solely responsible for any decision or action you take
+based on AI output.</p>
+
+<h2>6. Your Content</h2>
+<ul>
+  <li>You retain ownership of the content you submit ("User Content").</li>
+  <li>You grant us a limited, worldwide, non-exclusive license to process your User Content solely to provide and improve the Service.</li>
+  <li>You confirm you have all rights necessary to submit the User Content and that it does not violate any law or third-party right.</li>
+</ul>
+
+<h2>7. Intellectual Property</h2>
+<p>The RAX AI brand, software, design, and trademarks are owned by RASC (Sarango Cabrera). You may not copy, modify,
+distribute, or create derivative works of the Service without our prior written consent.</p>
+
+<h2>8. Termination</h2>
+<p>You can stop using the Service at any time and delete your account from the in-app Support screen or by emailing
+<a href="mailto:support@raxai.app">support@raxai.app</a>. We may suspend or terminate your access if you violate these
+Terms or the Acceptable Use policy.</p>
+
+<h2>9. Disclaimer of Warranties &amp; Limitation of Liability</h2>
+<p>THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED. TO THE
+MAXIMUM EXTENT PERMITTED BY LAW, RAX AI AND ITS OPERATORS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
+CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING OUT OF YOUR USE OF THE SERVICE. OUR TOTAL LIABILITY FOR ANY CLAIM RELATING
+TO THE SERVICE IS LIMITED TO THE AMOUNT YOU PAID US IN THE 3 MONTHS PRIOR TO THE EVENT GIVING RISE TO THE CLAIM.</p>
+
+<h2>10. Changes to These Terms</h2>
+<p>We may update these Terms occasionally. Material changes will be announced in the app. Continued use after a change
+means you accept the new Terms.</p>
+
+<h2>11. Governing Law</h2>
+<p>These Terms are governed by the laws of the country where RASC is established, without regard to conflict-of-law
+principles. Disputes will be resolved in the competent courts of that jurisdiction.</p>
+
+<h2>12. Contact</h2>
+<p>RAX AI — operated by RASC (Sarango Cabrera)<br/>
+Email: <a href="mailto:support@raxai.app">support@raxai.app</a></p>
+
+<hr/>
+<p class="muted">© 2026 RAX AI by RASC. All rights reserved.</p>
+</body></html>
+"""
+
+
+@api.get("/legal/privacy", response_class=HTMLResponse, include_in_schema=False)
+async def legal_privacy():
+    """Public Privacy Policy page (HTML) — required for App Store Connect."""
+    return HTMLResponse(content=_PRIVACY_HTML, status_code=200)
+
+
+@api.get("/legal/terms", response_class=HTMLResponse, include_in_schema=False)
+async def legal_terms():
+    """Public Terms of Service / EULA page (HTML) — required for App Store Connect."""
+    return HTMLResponse(content=_TERMS_HTML, status_code=200)
+
+
+@api.get("/legal", include_in_schema=False)
+async def legal_index():
+    """Convenience JSON listing the legal endpoints."""
+    return {
+        "privacy_policy": "/api/legal/privacy",
+        "terms_of_service": "/api/legal/terms",
+        "eula": "/api/legal/terms",
+    }
+
 
 
 @api.post("/auth/register")
