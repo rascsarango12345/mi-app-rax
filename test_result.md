@@ -192,12 +192,29 @@ backend:
 
   - task: "Chat image upload bug fix - POST /api/chat/send with image_base64"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
+        - working: true
+          agent: "testing"
+          comment: |
+            ✅ FULLY FIXED — verified via /app/chat_image_test.py against public REACT_APP_BACKEND_URL.
+            All 9 assertions passed (0 failures). Covers all 8 review scenarios:
+            1. ✅ Admin login (rascsarango12345@gmail.com) → JWT obtained, plan=pro
+            2. ✅ Image-only chat (no text key) → 200 OK, AI response 1011 chars
+            3. ✅ Text + image chat → 200 OK, AI response 838 chars
+            4. ✅ data:image/jpeg;base64,... prefix → 200 OK, prefix stripped
+            5. ✅ 2 images in same conversation_id → both saved with has_image=true
+            6. ✅ No text + no image → 400 "Envía un texto o una imagen"
+            7. ✅ Corrupt base64 ",,," → 400 "Imagen vacía o corrupta. Sube una foto JPG/PNG válida."
+            7b.✅ Empty string image_base64="" → 400 "Envía un texto o una imagen" (falsy)
+            8. ✅ chat_photos_today incremented 5 → 10 (Δ=5) via /api/auth/me
+            Both fixes verified in code:
+            - server.py line 105: text: Optional[str] = None ✓
+            - server.py lines 805-811: length check + base64.b64decode(validate=True) → 400 friendly ✓
         - working: false
           agent: "testing"
           comment: |
@@ -323,3 +340,24 @@ agent_communication:
         Minor (not blocking): image_base64=",,," yields 502 from Anthropic instead
         of 400 because the comma-split leaves ",," which is truthy. Optional polish:
         validate base64 with base64.b64decode(b64, validate=True) before sending.
+    - agent: "testing"
+      message: |
+        ✅ RE-VERIFICATION COMPLETE — Chat image upload bug FULLY FIXED.
+        /app/chat_image_test.py → 9 PASSED, 0 FAILED.
+
+        Both fixes confirmed in /app/backend/server.py:
+        - Line 105: text: Optional[str] = None (was: text: str required)
+        - Lines 805-811: Length check (<100) and base64.b64decode(validate=True)
+          → 400 "Imagen vacía o corrupta" / "Imagen inválida"
+
+        All 8 review scenarios pass:
+        1. ✅ Admin login → JWT, plan=pro
+        2. ✅ Image-only chat (no text key) → 200 OK + vision response (1011 chars)
+        3. ✅ Text + image → 200 OK + vision analysis (838 chars)
+        4. ✅ data:image/jpeg;base64,... prefix → 200 OK
+        5. ✅ Two images in same conversation_id → both saved with has_image=true
+        6. ✅ No text + no image → 400 "Envía un texto o una imagen"
+        7. ✅ Corrupt base64 ",,," → 400 "Imagen vacía o corrupta. Sube una foto JPG/PNG válida."
+        8. ✅ chat_photos_today incremented correctly (5 → 10, Δ=5) via /api/auth/me
+
+        No outstanding issues on the chat image upload flow. Task closed.

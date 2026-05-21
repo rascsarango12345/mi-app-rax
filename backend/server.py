@@ -102,7 +102,7 @@ class UserOut(BaseModel):
 
 class ChatSendIn(BaseModel):
     conversation_id: Optional[str] = None
-    text: str
+    text: Optional[str] = None
     language: str = "es"
     image_base64: Optional[str] = None  # optional image attachment
     user_tz: Optional[str] = None  # IANA tz, e.g. "America/Bogota"
@@ -798,11 +798,17 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
     file_contents = None
     if has_image:
         # Strip data URL prefix if present (handles "data:image/jpeg;base64,...")
+        import base64 as _b64
         raw = body.image_base64 or ""
         b64 = raw.split(",", 1)[-1] if "," in raw else raw
         b64 = b64.strip()
-        if not b64:
-            raise HTTPException(status_code=400, detail="Imagen vacía o corrupta")
+        if not b64 or len(b64) < 100:
+            raise HTTPException(status_code=400, detail="Imagen vacía o corrupta. Sube una foto JPG/PNG válida.")
+        # Validate that it's actually decodable base64
+        try:
+            _b64.b64decode(b64, validate=True)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Imagen inválida. Por favor sube una foto JPG/PNG normal.")
         file_contents = [ImageContent(image_base64=b64)]
 
     try:
