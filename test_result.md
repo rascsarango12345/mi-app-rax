@@ -190,6 +190,51 @@ backend:
             - DELETE /api/journal/entry/{id} → 200, returns {ok: true}. Verified entry no longer in history.
             Auth required: all return 401 without bearer token.
 
+  - task: "Chat image upload bug fix - POST /api/chat/send with image_base64"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: false
+          agent: "testing"
+          comment: |
+            CRITICAL P0 BUG STILL PRESENT (different root cause now).
+            Verified with /app/chat_image_test.py against the public REACT_APP_BACKEND_URL.
+
+            ORIGINAL 3 BUGS ARE FIXED at endpoint body level:
+            ✅ today_date / used_photos are now defined before use (lines 725-728) — no NameError
+            ✅ check_chat_photo_quota IS called when has_image=True (line 728)
+            ✅ Title generation uses "📷 Imagen" fallback when text is empty (line 739)
+            ✅ data:image/jpeg;base64,... prefix is correctly stripped (line 802)
+            ✅ Empty b64 after strip → 400 "Imagen vacía o corrupta" (line 805)
+            ✅ Image+text conversations persist with has_image=true on user msgs
+            ✅ chat_photos_today increments after each image (verified: 0 → 4)
+            ✅ With text="" + image, the AI describes the image correctly (200 OK)
+            ✅ Empty text + empty image returns 400 "Envía un texto o una imagen"
+
+            ❌ NEW BLOCKING BUG: ChatSendIn schema (line 103-109 of server.py) still has
+               `text: str`  (REQUIRED, not Optional).
+               If the mobile client sends image-only without a `text` field at all,
+               FastAPI rejects with 422 BEFORE the endpoint code runs.
+               Test result:
+                  POST /api/chat/send { image_base64: "<jpeg>", user_tz, locale }
+                  → 422 {"detail":[{"type":"missing","loc":["body","text"],"msg":"Field required",...}]}
+               This means: if the React Native client does not always include text:""
+               in the payload when uploading an image, every image upload will fail.
+               The review request explicitly tested without a text key and got 422.
+
+               FIX: Change ChatSendIn.text from `text: str` to `text: Optional[str] = None`
+               (the endpoint already does `text_clean = (body.text or "").strip()`).
+
+            Minor: image_base64=",,," yields 502 from Anthropic (invalid base64 passed through)
+            instead of a 400. The defensive 'Imagen vacía o corrupta' check only triggers
+            when b64 is fully empty after the comma-split. Suggest adding a base64 validation
+            (base64.b64decode(b64, validate=True)) before sending to Anthropic.
+            This is a polish item, not a blocker.
+
   - task: "Personal Shopper - POST /api/shopper/recommend"
     implemented: true
     working: true
@@ -213,7 +258,8 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Chat image upload bug fix - POST /api/chat/send with image_base64"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -244,3 +290,36 @@ agent_communication:
         refuses 1x1 dummy images with "Could not process image" → backend returns 500.
         This is expected behaviour; real uploads from the app will be normal-sized photos.
         Test script: /app/backend_test.py — 15/15 passing.
+    - agent: "testing"
+      message: |
+        P0 BUG FIX VERIFICATION — POST /api/chat/send with image_base64
+        Test script: /app/chat_image_test.py — 5 pass / 4 fail.
+
+        RESULT: ❌ Bug is NOT fully fixed. The endpoint body logic is correct
+        but a NEW blocking issue exists at the Pydantic schema level.
+
+        ChatSendIn (server.py line 103-109) declares `text: str` (REQUIRED).
+        When the client sends only image_base64 with no `text` key:
+            POST /api/chat/send { image_base64, user_tz, locale }
+            → 422 Unprocessable Entity  (validation error before endpoint runs)
+        This means the iOS/Android app will still get errors on every image upload
+        unless it ALWAYS sends `text: ""` in the payload.
+
+        REQUIRED FIX:  change line 105 from
+            text: str
+        to
+            text: Optional[str] = None
+        The endpoint already handles None/empty via `text_clean = (body.text or "").strip()`.
+
+        Once the schema is fixed, the rest of the bug-fix works correctly:
+        ✅ Image-only with text="" → 200 OK + AI vision description
+        ✅ Text + image → 200 OK + AI analysis
+        ✅ data:image/jpeg;base64,... prefix stripped
+        ✅ Conversations persist with has_image=true on user messages
+        ✅ chat_photos_today increments after each image (0 → 4 across tests)
+        ✅ Empty text + no image → 400 "Envía un texto o una imagen"
+        ✅ Empty b64 after split → 400 "Imagen vacía o corrupta"
+
+        Minor (not blocking): image_base64=",,," yields 502 from Anthropic instead
+        of 400 because the comma-split leaves ",," which is truthy. Optional polish:
+        validate base64 with base64.b64decode(b64, validate=True) before sending.

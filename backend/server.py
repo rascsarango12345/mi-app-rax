@@ -715,12 +715,29 @@ async def get_messages(cid: str, user: dict = Depends(get_current_user)):
 async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
     await check_quota(user, "messages")
 
+    # Validate input: must have text OR image
+    has_image = bool(body.image_base64)
+    text_clean = (body.text or "").strip()
+    if not text_clean and not has_image:
+        raise HTTPException(status_code=400, detail="Envía un texto o una imagen")
+
+    # If sending an image, also check photo quota
+    today_date = None
+    used_photos = 0
+    if has_image:
+        today_date, used_photos = await check_chat_photo_quota(user)
+
+    # Default text when only image is sent
+    if not text_clean and has_image:
+        text_clean = "Por favor analiza esta imagen y dime qué ves. Después espera a que te diga qué necesito."
+
     # Ensure conversation
     cid = body.conversation_id
     if not cid:
         cid = f"conv_{uuid.uuid4().hex[:14]}"
         now = utcnow()
-        title = body.text[:40] + ("..." if len(body.text) > 40 else "")
+        title_src = text_clean if text_clean else "📷 Imagen"
+        title = title_src[:40] + ("..." if len(title_src) > 40 else "")
         await db.conversations.insert_one({
             "conversation_id": cid,
             "user_id": user["user_id"],
@@ -738,8 +755,8 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
         "message_id": f"msg_{uuid.uuid4().hex[:12]}",
         "conversation_id": cid,
         "role": "user",
-        "content": body.text,
-        "has_image": bool(body.image_base64),
+        "content": text_clean,
+        "has_image": has_image,
         "created_at": utcnow(),
     }
     await db.messages.insert_one(user_msg)
@@ -758,10 +775,18 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
     if user_lang in lang_names:
         system_prompt += f"\n\nIMPORTANT: Respond ONLY in {lang_names[user_lang]}. The user prefers {lang_names[user_lang]}."
 
+    # If image present, instruct AI to use vision
+    if has_image:
+        system_prompt += (
+            "\n\nIMPORTANT: The user has attached an image. ANALYZE IT carefully and respond based on what you see. "
+            "Describe what's in the image and then answer the user's question about it. If the user only sent the image "
+            "without text, describe in detail what you see, identify objects/people/text, and ask what they need help with."
+        )
+
     # Web search fallback for real-time info
     extra_context = ""
-    if needs_web_search(body.text):
-        web_results = do_web_search(body.text, max_results=5)
+    if needs_web_search(text_clean):
+        web_results = do_web_search(text_clean, max_results=5)
         if web_results:
             extra_context = "\n\n" + web_results
             system_prompt = system_prompt + extra_context
@@ -771,16 +796,26 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
 
     # Send message (with optional image)
     file_contents = None
-    if body.image_base64:
-        # Strip data URL prefix if present
-        b64 = body.image_base64.split(",")[-1] if "," in body.image_base64 else body.image_base64
+    if has_image:
+        # Strip data URL prefix if present (handles "data:image/jpeg;base64,...")
+        raw = body.image_base64 or ""
+        b64 = raw.split(",", 1)[-1] if "," in raw else raw
+        b64 = b64.strip()
+        if not b64:
+            raise HTTPException(status_code=400, detail="Imagen vacía o corrupta")
         file_contents = [ImageContent(image_base64=b64)]
 
     try:
-        ai_text = await chat.send_message(UserMessage(text=body.text, file_contents=file_contents))
+        ai_text = await chat.send_message(UserMessage(text=text_clean, file_contents=file_contents))
     except Exception as e:
         logger.exception("Chat error")
-        raise HTTPException(status_code=502, detail=f"AI error: {str(e)[:200]}")
+        err_msg = str(e)[:300]
+        # Provide friendlier error to the user
+        if "image" in err_msg.lower() or "vision" in err_msg.lower() or "base64" in err_msg.lower():
+            friendly = "No pude procesar la imagen. Asegúrate de subir una foto JPG/PNG normal (no muy grande). Intenta otra vez."
+        else:
+            friendly = f"Error del modelo IA: {err_msg}"
+        raise HTTPException(status_code=502, detail=friendly)
 
     ai_msg_doc = {
         "message_id": f"msg_{uuid.uuid4().hex[:12]}",
@@ -792,7 +827,7 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
     await db.messages.insert_one(dict(ai_msg_doc))
     await db.conversations.update_one({"conversation_id": cid}, {"$set": {"updated_at": utcnow()}})
     await bump_quota(user["user_id"], "messages")
-    if body.image_base64 and today_date is not None:
+    if has_image and today_date is not None:
         await bump_chat_photo(user["user_id"], today_date, used_photos)
 
     return {
