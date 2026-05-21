@@ -815,8 +815,8 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
     }
     await db.messages.insert_one(user_msg)
 
-    # Load prior messages
-    history = await db.messages.find({"conversation_id": cid}, {"_id": 0}).sort("created_at", 1).to_list(50)
+    # Load prior messages (sorted ascending, so the last item is the user message we just inserted)
+    history = await db.messages.find({"conversation_id": cid}, {"_id": 0}).sort("created_at", 1).to_list(200)
 
     # Build LlmChat with timezone-aware system prompt
     user_tz = (body.user_tz or "UTC").strip()
@@ -828,6 +828,44 @@ async def chat_send(body: ChatSendIn, user: dict = Depends(get_current_user)):
     lang_names = {"es": "Spanish", "en": "English", "hi": "Hindi", "zh": "Chinese", "ru": "Russian"}
     if user_lang in lang_names:
         system_prompt += f"\n\nIMPORTANT: Respond ONLY in {lang_names[user_lang]}. The user prefers {lang_names[user_lang]}."
+
+    # === CONVERSATION MEMORY ===
+    # Inject prior turns so the AI remembers what the user has said in this conversation.
+    # Exclude the user message we just inserted (it will be sent as the current input).
+    prior_msgs = [m for m in history if m.get("message_id") != user_msg["message_id"]]
+    # Keep the last 40 turns (~20 back-and-forth exchanges) and cap total chars to avoid token blowup.
+    prior_msgs = prior_msgs[-40:]
+    if prior_msgs:
+        memory_lines = []
+        total_chars = 0
+        MAX_MEMORY_CHARS = 12000  # ~3k tokens, leaves room for system + current msg + reply
+        # Iterate from most recent backwards so we keep recent context if we hit the cap
+        kept_reverse = []
+        for m in reversed(prior_msgs):
+            role = (m.get("role") or "user").upper()
+            content = (m.get("content") or "").strip()
+            if not content:
+                continue
+            # Truncate very long individual messages
+            if len(content) > 1500:
+                content = content[:1500] + "…"
+            line = f"[{role}]: {content}"
+            if total_chars + len(line) > MAX_MEMORY_CHARS:
+                break
+            kept_reverse.append(line)
+            total_chars += len(line)
+        if kept_reverse:
+            memory_lines = list(reversed(kept_reverse))
+            memory_block = "\n".join(memory_lines)
+            system_prompt += (
+                "\n\n=== HISTORIAL DE ESTA CONVERSACIÓN (memoria) ===\n"
+                "A continuación está el historial COMPLETO de esta conversación con el usuario. "
+                "DEBES recordar y usar TODA esta información (nombres, datos personales, preferencias, contexto, decisiones tomadas, etc.) "
+                "al responder. Si el usuario pregunta algo que ya te dijo antes (su nombre, su edad, su trabajo, lo que quiere, etc.), "
+                "respóndelo correctamente basándote en este historial. NO digas 'no lo sé' si la información está aquí.\n\n"
+                f"{memory_block}\n"
+                "=== FIN DEL HISTORIAL ===\n"
+            )
 
     # If image present, instruct AI to use vision + homework helper mode
     if has_image:

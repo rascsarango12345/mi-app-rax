@@ -338,6 +338,48 @@ backend:
             AI response ends with [GENERATE_PDF:Resumen_Fotosintesis] tag exactly as instructed
             by SYSTEM_PROMPT_BASE. Frontend can parse this tag and trigger /api/pdf/generate.
 
+  - task: "Conversation Memory Fix - /api/chat/send injects history into system prompt"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: |
+            ✅ FULLY VERIFIED — Memory fix works end-to-end. /app/memory_test.py → 8/8 PASS.
+            Test against public REACT_APP_BACKEND_URL with admin user (plan=pro).
+
+            TEST 2 (Memory):
+              2a. POST /api/chat/send "Hola, mi nombre es Carlos Sarango y tengo 25 años. Soy desarrollador."
+                  → 200, conv_id=conv_adc6a3684a2a47. AI greets "¡Hola Carlos!".
+              2b. POST /api/chat/send "¿Cómo me llamo?" (same conv_id)
+                  → 200. AI: "Te llamas **Carlos Sarango** y tienes **25 años**. Eres desarrollador..."
+                  ✓ Contains "Carlos".
+              2c. POST /api/chat/send "¿Cuántos años tengo y a qué me dedico?" (same conv_id)
+                  → 200. AI: "Tienes 25 años... Te dedicas al desarrollo de software (eres desarrollador)".
+                  ✓ Contains "25" AND "desarrollador".
+
+            TEST 3 (Isolation):
+              POST /api/chat/send "¿Cómo me llamo?" (NO conversation_id → new conv)
+              → 200, new conv_id=conv_ecc41cd3c36e43. AI: "Actualmente no tengo acceso a tu nombre porque esta es nuestra primera interacción".
+              ✓ Does NOT mention "Carlos". Memory does NOT leak across conversations.
+
+            TEST 4 (Regression):
+              4a. Simple message → 200 with {conversation_id, message:{message_id,conversation_id,role,content,created_at}, history_len}.
+              4b. GET /api/conversations → 200, returned 26 conversations.
+              4c. GET /api/conversations/{cid}/messages → 200, 6 messages with both 'user' and 'assistant' roles.
+
+            Implementation verified at server.py lines 818-868:
+              - Loads full history from MongoDB sorted ascending by created_at (line 819).
+              - Excludes the just-inserted user message (line 835).
+              - Keeps last 40 prior turns (line 837).
+              - Caps total memory to 12K chars working backwards from most recent (lines 841-856).
+              - Injects under "=== HISTORIAL DE ESTA CONVERSACIÓN (memoria) ===" block (lines 860-868).
+            No outstanding issues. Conversation memory bug is fully resolved.
+
   - task: "Personal Shopper - POST /api/shopper/recommend"
     implemented: true
     working: true
@@ -469,3 +511,26 @@ agent_communication:
               Optional polish: if `pdf_base64` key is present but empty/short, return 400 explicitly.
 
         All 5 new endpoints/behaviors work correctly. No critical issues. Task closed.
+
+    - agent: "testing"
+      message: |
+        ✅ CONVERSATION MEMORY FIX VERIFIED — /api/chat/send now properly remembers context.
+        /app/memory_test.py → 8/8 PASS against public REACT_APP_BACKEND_URL.
+
+        TEST 2 (Memory across messages in same conversation):
+          2a. "Hola, mi nombre es Carlos Sarango y tengo 25 años. Soy desarrollador." → 200 (conv_adc6a3684a2a47).
+          2b. "¿Cómo me llamo?" (same conv) → AI: "Te llamas **Carlos Sarango** y tienes **25 años**. Eres desarrollador..." ✓ Contains "Carlos".
+          2c. "¿Cuántos años tengo y a qué me dedico?" (same conv) → AI: "Tienes 25 años... Te dedicas al desarrollo de software (eres desarrollador)". ✓ Contains "25" AND "desarrollador".
+
+        TEST 3 (Isolation between conversations):
+          New conv (no conversation_id) "¿Cómo me llamo?" → AI: "Actualmente no tengo acceso a tu nombre porque esta es nuestra primera interacción..." ✓ Does NOT mention "Carlos". Memory does NOT leak across conversations.
+
+        TEST 4 (Regression):
+          4a. Simple message → 200, proper response structure {conversation_id, message{...}, history_len} ✓
+          4b. GET /api/conversations → 200, 26 conversations returned ✓
+          4c. GET /api/conversations/{cid}/messages → 200, 6 messages with both 'user' and 'assistant' roles ✓
+
+        Implementation confirmed at server.py lines 818-868: loads full history from MongoDB sorted ASC,
+        excludes the just-inserted user msg, keeps last 40 turns, caps total to 12K chars working from most
+        recent backwards, injects into system_prompt under "=== HISTORIAL DE ESTA CONVERSACIÓN (memoria) ===" block.
+        No outstanding issues. Memory bug is fully resolved.
