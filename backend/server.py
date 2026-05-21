@@ -171,7 +171,7 @@ PLAN_LIMITS = {
     "pro": {"messages": 99999, "images": 99999, "chat_photos": 99999},
 }
 
-PLAN_PRICES = {"free": 0.0, "premium": 5.99, "pro": 15.99}
+PLAN_PRICES = {"free": 0.0, "premium": 5.99, "pro": 9.99}
 
 
 def utcnow() -> datetime:
@@ -384,7 +384,7 @@ async def bootstrap_stripe_catalog():
     catalog = {}
     plans_to_create = [
         ("premium", "RAX AI Premium", 599, "1,000 mensajes + 200 imágenes / mes"),
-        ("pro", "RAX AI Pro", 1599, "Ilimitado: chat, imágenes, voces, soporte 24/7"),
+        ("pro", "RAX AI Pro", 999, "Ilimitado: chat, imágenes, voces, soporte 24/7"),
     ]
     for key, name, unit_amount, description in plans_to_create:
         product = stripe.Product.create(name=name, description=description, metadata={"plan": key, "app": "rax_ai"})
@@ -1255,7 +1255,7 @@ SUPPORT_BOT_SYSTEM = (
     "Eres el asistente de soporte automático de RAX AI (creada por RASC). Resuelves problemas básicos de clientes "
     "de forma cálida, rápida y profesional en español. Tu objetivo es ayudar al cliente sin esperar a un humano. "
     "Conoces estos datos clave de la app:\n"
-    "- Planes: Gratis (30 msgs/5 imgs), Premium $5.99/mes (1,000 msgs/200 imgs), Pro $15.99/mes (ilimitado).\n"
+    "- Planes: Gratis (30 msgs/5 imgs), Premium $5.99/mes (1,000 msgs/200 imgs), Pro $9.99/mes (ilimitado).\n"
     "- Pagos vía Stripe (tarjetas, Apple Pay, Google Pay). El usuario puede cancelar su suscripción desde su Perfil → 'Cancelar suscripción' y se le devuelve el dinero al instante.\n"
     "- Voces: Sofía y Luna (mujer), Diego y Alex (hombre).\n"
     "- Imágenes: 6 estilos (realista, anime, futurista, gamer, caricatura, cinemático).\n"

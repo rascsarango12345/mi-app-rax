@@ -27,7 +27,7 @@ const PLANS = [
   {
     id: "pro",
     name: "Pro",
-    price: "$15.99/mes",
+    price: "$9.99/mes",
     color: Colors.neonGreen,
     perks: ["Ilimitado todo", "API privada", "Análisis avanzado", "Acceso anticipado", "Soporte 24/7"],
   },
