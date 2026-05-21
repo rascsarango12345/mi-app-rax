@@ -114,26 +114,39 @@ export default function VoiceScreen() {
       setRecording(null);
       if (!uri) { showError("No se generó el audio"); setState("idle"); return; }
 
-      // Read audio as base64
+      // Read audio as base64 using universal fetch + FileReader (works on iOS, Android, Web)
       let audioBase64 = "";
       let mimeType = "audio/m4a";
-      if (Platform.OS === "web") {
-        const r = await fetch(uri);
-        const blob = await r.blob();
-        mimeType = blob.type || "audio/webm";
+      try {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        mimeType = blob.type || (Platform.OS === "web" ? "audio/webm" : "audio/m4a");
         audioBase64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => {
             const result = reader.result as string;
-            resolve(result.split(",", 2)[1] || "");
+            const idx = result.indexOf(",");
+            resolve(idx >= 0 ? result.substring(idx + 1) : result);
           };
-          reader.onerror = reject;
+          reader.onerror = () => reject(new Error("No pude leer el audio"));
           reader.readAsDataURL(blob);
         });
-      } else {
-        const FileSystem = require("expo-file-system");
-        audioBase64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-        mimeType = uri.endsWith(".m4a") ? "audio/m4a" : (uri.endsWith(".webm") ? "audio/webm" : "audio/m4a");
+      } catch (readErr: any) {
+        // Fallback: try the legacy FileSystem API on native
+        if (Platform.OS !== "web") {
+          try {
+            const FileSystem = await import("expo-file-system/legacy");
+            audioBase64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" as any });
+            mimeType = uri.endsWith(".m4a") ? "audio/m4a" : (uri.endsWith(".webm") ? "audio/webm" : "audio/m4a");
+          } catch (fsErr: any) {
+            throw new Error("No pude convertir el audio: " + (readErr?.message || fsErr?.message || "error desconocido"));
+          }
+        } else {
+          throw readErr;
+        }
+      }
+      if (!audioBase64 || audioBase64.length < 100) {
+        throw new Error("Audio vacío. Asegúrate de haber grabado al menos 1 segundo.");
       }
 
       setStage(`${persona.name} está pensando...`);
