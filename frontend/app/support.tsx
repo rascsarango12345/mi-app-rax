@@ -16,6 +16,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Radius, Spacing } from "@/src/theme";
 import { apiGet, apiPost } from "@/src/api";
+import { useT } from "@/src/i18n";
 import { useAuth } from "@/src/auth";
 
 type Ticket = {
@@ -41,6 +42,7 @@ type TicketMsg = {
 export default function SupportScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useT();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
