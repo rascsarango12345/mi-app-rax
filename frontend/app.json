@@ -44,10 +44,12 @@
       "bundleIdentifier": "com.sarangocabrera.raxai",
       "buildNumber": "1",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "RAX AI usa el micrófono para transcribir tu voz.",
-        "NSPhotoLibraryUsageDescription": "Selecciona imágenes para que RAX AI las analice.",
-        "NSCameraUsageDescription": "Captura fotos para que RAX AI las analice.",
-        "ITSAppUsesNonExemptEncryption": false
+        "NSMicrophoneUsageDescription": "RAX AI uses your microphone to transcribe your voice into text.",
+        "NSPhotoLibraryUsageDescription": "Select images for RAX AI to analyze.",
+        "NSCameraUsageDescription": "Capture photos for RAX AI to analyze.",
+        "NSUserTrackingUsageDescription": "RAX AI does not track you across other apps or websites.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationCategoryType": "public.app-category.productivity"
       }
     },
     "android": {
