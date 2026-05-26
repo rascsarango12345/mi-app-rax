@@ -7,6 +7,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { Colors, Radius, Spacing } from "@/src/theme";
 import { apiPost, apiGet } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import {
+  isRevenueCatAvailable,
+  getCurrentOffering,
+  purchasePackage,
+  restorePurchases,
+  planFromCustomerInfo,
+  PACKAGE_PREMIUM,
+  PACKAGE_PRO,
+} from "@/src/revenuecat";
 
 const PLANS = [
   {
@@ -40,7 +49,37 @@ export default function PremiumScreen() {
   const [loading, setLoading] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
-  // Handle return from Stripe Checkout
+  // iOS-only: load Offering from RevenueCat. Web/Android keep Stripe.
+  const useIAP = Platform.OS === "ios" && isRevenueCatAvailable();
+  const [offering, setOffering] = useState<any | null>(null);
+  const [iapPrices, setIapPrices] = useState<{ premium?: string; pro?: string }>({});
+  const [loadingOffering, setLoadingOffering] = useState<boolean>(useIAP);
+
+  useEffect(() => {
+    if (!useIAP) return;
+    (async () => {
+      try {
+        setLoadingOffering(true);
+        const off = await getCurrentOffering();
+        setOffering(off);
+        if (off) {
+          const premPkg = off?.availablePackages?.find((p: any) => p.identifier === PACKAGE_PREMIUM);
+          const proPkg = off?.availablePackages?.find((p: any) => p.identifier === PACKAGE_PRO);
+          setIapPrices({
+            premium: premPkg?.product?.priceString,
+            pro: proPkg?.product?.priceString,
+          });
+        }
+      } catch (e) {
+        // Silently fall back — error is non-fatal
+        console.warn("Failed to load RevenueCat offerings", e);
+      } finally {
+        setLoadingOffering(false);
+      }
+    })();
+  }, [useIAP]);
+
+  // Handle return from Stripe Checkout (Web/Android only)
   useEffect(() => {
     if (params.status === "success" && params.session_id) {
       (async () => {
@@ -63,15 +102,61 @@ export default function PremiumScreen() {
 
   const showError = (m: string) => (Platform.OS === "web" ? window.alert(m) : Alert.alert("Aviso", m));
 
-  const onChoose = async (planId: "premium" | "pro") => {
-    if (!user) {
-      showError("Inicia sesión para suscribirte");
-      return;
+  // === iOS purchase flow via RevenueCat (Apple In-App Purchase) ===
+  const onChooseIAP = async (planId: "premium" | "pro") => {
+    if (!user) { showError("Inicia sesión para suscribirte"); return; }
+    if (user.is_guest) { showError("Crea una cuenta (no invitado) para suscribirte"); return; }
+    if (!offering) { showError("No pude cargar las opciones de suscripción. Intenta de nuevo."); return; }
+    const targetId = planId === "premium" ? PACKAGE_PREMIUM : PACKAGE_PRO;
+    const pkg = offering?.availablePackages?.find((p: any) => p.identifier === targetId);
+    if (!pkg) { showError(`Paquete no disponible: ${targetId}`); return; }
+    setLoading(planId);
+    try {
+      const { plan, customerInfo } = await purchasePackage(pkg);
+      // Tell backend so MongoDB plan stays in sync
+      await apiPost("/revenuecat/sync", {
+        app_user_id: user.user_id,
+        plan,
+        entitlements: Object.keys(customerInfo?.entitlements?.active || {}),
+      }).catch(() => {});
+      await refresh();
+      setStatusMsg(`✅ ¡Suscripción activa! Ahora eres ${plan.toUpperCase()}.`);
+    } catch (e: any) {
+      if (e?.userCancelled) {
+        // User pressed Cancel in the Apple sheet — don't show an error.
+      } else {
+        showError(e?.message || "No se pudo completar la compra. Intenta otra vez.");
+      }
+    } finally {
+      setLoading(null);
     }
-    if (user.is_guest) {
-      showError("Crea una cuenta (no invitado) para suscribirte");
-      return;
+  };
+
+  // === Restore purchases (iOS) ===
+  const onRestore = async () => {
+    if (!user) { showError("Inicia sesión primero"); return; }
+    setLoading("restore");
+    try {
+      const { plan, customerInfo } = await restorePurchases();
+      await apiPost("/revenuecat/sync", {
+        app_user_id: user.user_id,
+        plan,
+        entitlements: Object.keys(customerInfo?.entitlements?.active || {}),
+      }).catch(() => {});
+      await refresh();
+      if (plan === "free") setStatusMsg("No encontramos suscripciones activas en tu Apple ID.");
+      else setStatusMsg(`✅ Suscripción restaurada: ${plan.toUpperCase()}.`);
+    } catch (e: any) {
+      showError(e?.message || "No pude restaurar las compras.");
+    } finally {
+      setLoading(null);
     }
+  };
+
+  // === Stripe flow for Web / Android ===
+  const onChooseStripe = async (planId: "premium" | "pro") => {
+    if (!user) { showError("Inicia sesión para suscribirte"); return; }
+    if (user.is_guest) { showError("Crea una cuenta (no invitado) para suscribirte"); return; }
     setLoading(planId);
     try {
       const origin = Platform.OS === "web" ? window.location.origin : (process.env.EXPO_PUBLIC_BACKEND_URL || "");
@@ -87,6 +172,15 @@ export default function PremiumScreen() {
       setLoading(null);
     }
   };
+
+  const onChoose = (planId: "premium" | "pro") => (useIAP ? onChooseIAP(planId) : onChooseStripe(planId));
+
+  // Plans config with platform-aware prices (RevenueCat localizes prices on iOS)
+  const plansForUI = PLANS.map((p) => {
+    if (useIAP && p.id === "premium" && iapPrices.premium) return { ...p, price: `${iapPrices.premium}/mes` };
+    if (useIAP && p.id === "pro" && iapPrices.pro) return { ...p, price: `${iapPrices.pro}/mes` };
+    return p;
+  });
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -108,7 +202,13 @@ export default function PremiumScreen() {
         <Text style={styles.intro}>
           Desbloquea todo el poder de RAX AI. Cancela cuando quieras.
         </Text>
-        {PLANS.map((p) => (
+        {useIAP && loadingOffering && (
+          <View style={{ alignItems: "center", padding: 8 }}>
+            <ActivityIndicator color={Colors.electricBlue} />
+            <Text style={{ color: Colors.textMuted, marginTop: 6, fontSize: 12 }}>Cargando opciones…</Text>
+          </View>
+        )}
+        {plansForUI.map((p) => (
           <View
             key={p.id}
             testID={`plan-${p.id}`}
@@ -138,7 +238,7 @@ export default function PremiumScreen() {
                 testID={`choose-${p.id}`}
                 style={[styles.cta, { backgroundColor: p.color }]}
                 onPress={() => onChoose(p.id as "premium" | "pro")}
-                disabled={loading !== null || user?.plan === p.id}
+                disabled={loading !== null || user?.plan === p.id || (useIAP && loadingOffering)}
               >
                 {loading === p.id ? (
                   <ActivityIndicator color="#000" />
@@ -152,8 +252,25 @@ export default function PremiumScreen() {
           </View>
         ))}
 
+        {useIAP && (
+          <TouchableOpacity
+            testID="restore-purchases"
+            onPress={onRestore}
+            disabled={loading !== null}
+            style={styles.restoreBtn}
+          >
+            {loading === "restore" ? (
+              <ActivityIndicator color={Colors.electricBlue} />
+            ) : (
+              <Text style={styles.restoreText}>🔄 Restaurar compras</Text>
+            )}
+          </TouchableOpacity>
+        )}
+
         <Text style={styles.payments}>
-          🔒 Cancela cuando quieras
+          {useIAP
+            ? "🔒 Renovación automática · Gestiona en Ajustes > tu Apple ID > Suscripciones · Cancela cuando quieras"
+            : "🔒 Cancela cuando quieras"}
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -176,5 +293,7 @@ const styles = StyleSheet.create({
   perkText: { color: Colors.textPrimary, fontSize: 14 },
   cta: { marginTop: Spacing.md, paddingVertical: 14, borderRadius: Radius.pill, alignItems: "center" },
   ctaText: { color: "#000", fontWeight: "800", fontSize: 15 },
+  restoreBtn: { marginTop: 4, paddingVertical: 12, alignItems: "center" },
+  restoreText: { color: Colors.electricBlue, fontWeight: "700", fontSize: 14 },
   payments: { color: Colors.textMuted, textAlign: "center", fontSize: 11, marginTop: 8 },
 });

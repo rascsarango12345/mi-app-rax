@@ -439,10 +439,97 @@ backend:
             Claude Sonnet 4.5 to compose Markdown recommendations (~3K chars). limit=99999 for pro plan.
             Quota increments. Auth required: returns 401 without token.
 
+  - task: "RevenueCat webhook - POST /api/revenuecat/webhook"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: |
+            ✅ FULLY VERIFIED — /app/revenuecat_regression_test.py → 22/22 PASS.
+            REVENUECAT_WEBHOOK_SECRET correctly read from /app/backend/.env (len=43).
+            Tested against public REACT_APP_BACKEND_URL.
+
+            Test cases:
+            1a) No Authorization header → 401 {"detail":"Invalid Authorization header"} ✓
+            1b) Wrong bearer → 401 {"detail":"Invalid Authorization header"} ✓
+            1c) Valid bearer + TEST event {"event":{"type":"TEST","id":"t1"}} → 200
+                {"status":"ok","note":"Test webhook received successfully"} ✓
+            1d) Valid bearer + INITIAL_PURCHASE (new user, entitlement_ids:["premium"]) → 200
+                {"status":"ok","plan":"premium","event_type":"INITIAL_PURCHASE","updated":1}
+                Verified via /api/auth/me: plan=premium ✓
+            1e) Valid bearer + CANCELLATION for same user → 200
+                {"status":"ok","plan":"free","event_type":"CANCELLATION","updated":1}
+                Verified via /api/auth/me: plan=free ✓
+            1f) Product fallback: payload missing entitlements, product_id="raxai_pro_monthly1",
+                event.type=INITIAL_PURCHASE → 200 with plan="pro".
+                Verified via /api/auth/me: plan=pro ✓
+
+            No tracebacks in /var/log/supervisor/backend.err.log during the run.
+            Implementation at server.py lines 2353-2429 works correctly:
+              - Auth check (Bearer secret) at lines 2364-2368
+              - TEST event shortcut at lines 2426-2427
+              - _derive_plan_from_entitlements + _plan_from_product_id fallback at 2384-2392
+              - Downgrade events list (CANCELLATION/EXPIRATION/...) at 2386, 2394-2395
+              - User plan update at 2412-2420 (matches app_user_id and aliases).
+
+  - task: "RevenueCat client sync - POST /api/revenuecat/sync"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: |
+            ✅ FULLY VERIFIED — /app/revenuecat_regression_test.py.
+
+            Test cases:
+            2a) No JWT → 401 {"detail":"Missing token"} ✓
+            2b) Valid JWT but app_user_id != current user → 403
+                {"detail":"app_user_id does not match the authenticated user"} ✓
+            2c) Valid JWT + matching app_user_id + plan:"premium" → 200
+                {"status":"ok","plan":"premium"}.
+                Verified via /api/auth/me: plan=premium ✓
+
+            Implementation at server.py lines 2325-2350 works correctly with security check
+            that prevents users from changing other users' plans.
+
+  - task: "Regression - GET /api/health, /api/legal/{privacy,terms}, /api/conversations, /api/chat/send + memory"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: |
+            ✅ ALL REGRESSION TESTS PASS — no recent changes have broken existing endpoints.
+
+            3) GET /api/health → 200 {"status":"healthy","db":"ok","version":"1.0.0","service":"rax-ai-backend"} ✓
+            4) POST /api/chat/send (fresh user, text="hola") → 200, AI reply 986 chars ✓
+            5) Chat memory regression (same conv_id):
+               5a) "Me llamo Pedro y tengo 30 años." → 200, AI says "Encantado de conocerte, Pedro" ✓
+               5b) "¿Cómo me llamo?" (same conv_id) → 200, AI says "¡Te llamas **Pedro**!... Tienes 30 años" ✓
+               Memory fix still works — conversation history is correctly injected into the system prompt.
+            6) GET /api/legal/privacy → 200, text/html (7512 bytes), contains "Privacy Policy" ✓
+            7) GET /api/legal/terms → 200, text/html (8820 bytes), contains "Terms of Service" ✓
+            8) GET /api/conversations (JWT) → 200, list with 1 conversation ✓
+
+            No tracebacks in backend.err.log during the test run.
+
 metadata:
   created_by: "main_agent"
-  version: "1.3"
-  test_sequence: 4
+  version: "1.4"
+  test_sequence: 5
   run_ui: false
 
 test_plan:

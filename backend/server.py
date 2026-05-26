@@ -9,7 +9,7 @@ import asyncio
 import logging
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Any
 
 import bcrypt
 import jwt
@@ -2274,6 +2274,161 @@ async def stripe_webhook(request: Request):
                 logger.warning(f"Subscription retrieve failed: {e}")
 
     return {"received": True}
+
+
+# ============================================================
+# 💎 RevenueCat — Apple In-App Purchases (iOS)
+# Web/Android keep using Stripe via the endpoints above.
+# - POST /api/revenuecat/sync     → authenticated user reports their new plan after a purchase
+# - POST /api/revenuecat/webhook  → RevenueCat server-to-server notifications (no JWT auth, uses Bearer secret)
+# ============================================================
+REVENUECAT_WEBHOOK_SECRET = os.getenv("REVENUECAT_WEBHOOK_SECRET", "")
+
+
+class RevenueCatSyncIn(BaseModel):
+    app_user_id: str
+    plan: Literal["free", "premium", "pro"]
+    entitlements: Optional[List[str]] = None
+
+
+def _derive_plan_from_entitlements(entitlements: Any) -> str:
+    """Given the entitlements payload from RevenueCat, return our internal plan name."""
+    keys: List[str] = []
+    if isinstance(entitlements, dict):
+        active = entitlements.get("active") if "active" in entitlements else entitlements
+        if isinstance(active, dict):
+            keys = list(active.keys())
+        elif isinstance(active, list):
+            keys = list(active)
+    elif isinstance(entitlements, list):
+        keys = list(entitlements)
+    keys_lower = [str(k).lower() for k in keys]
+    if "pro" in keys_lower:
+        return "pro"
+    if "premium" in keys_lower:
+        return "premium"
+    return "free"
+
+
+def _plan_from_product_id(product_id: Optional[str]) -> Optional[str]:
+    """Fallback: map App Store product_id → internal plan."""
+    if not product_id:
+        return None
+    pid = product_id.lower()
+    if "pro" in pid:
+        return "pro"
+    if "premium" in pid:
+        return "premium"
+    return None
+
+
+@api.post("/revenuecat/sync")
+async def revenuecat_sync(body: RevenueCatSyncIn, user: dict = Depends(get_current_user)):
+    """Client-driven sync: called by the iOS app after a successful purchase/restore.
+    The authenticated user can only update their OWN plan (security check).
+    """
+    if body.app_user_id != user["user_id"]:
+        raise HTTPException(status_code=403, detail="app_user_id does not match the authenticated user")
+
+    new_plan = body.plan
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"plan": new_plan, "iap_provider": "revenuecat", "iap_updated_at": utcnow()}},
+    )
+    try:
+        await db.revenuecat_events.insert_one({
+            "event_id": f"sync_{uuid.uuid4().hex[:12]}",
+            "source": "client_sync",
+            "user_id": user["user_id"],
+            "plan": new_plan,
+            "entitlements": body.entitlements or [],
+            "created_at": utcnow(),
+        })
+    except Exception:
+        pass
+    logger.info(f"RevenueCat sync - user={user['user_id']} -> plan={new_plan}")
+    return {"status": "ok", "plan": new_plan}
+
+
+@app.post("/api/revenuecat/webhook", include_in_schema=False)
+async def revenuecat_webhook(request: Request):
+    """RevenueCat server-to-server webhook.
+    Configure in RevenueCat Dashboard -> Project settings -> Integrations -> Webhooks:
+        URL:    https://<your-backend>/api/revenuecat/webhook
+        Header: Authorization: Bearer <REVENUECAT_WEBHOOK_SECRET>
+    """
+    if not REVENUECAT_WEBHOOK_SECRET:
+        logger.error("RevenueCat webhook hit but REVENUECAT_WEBHOOK_SECRET is not configured")
+        raise HTTPException(status_code=500, detail="Webhook secret not configured")
+
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization") or ""
+    expected = f"Bearer {REVENUECAT_WEBHOOK_SECRET}"
+    if auth_header.strip() != expected.strip():
+        logger.warning("RevenueCat webhook: invalid Authorization header")
+        raise HTTPException(status_code=401, detail="Invalid Authorization header")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    event = payload.get("event") or {}
+    event_type = (event.get("type") or "UNKNOWN").upper()
+    app_user_id = event.get("app_user_id") or event.get("original_app_user_id")
+    aliases = event.get("aliases") or []
+    product_id = event.get("product_id")
+
+    candidates = [c for c in [app_user_id, *aliases] if c]
+
+    entitlements = event.get("entitlement_ids") or event.get("entitlements") or {}
+    new_plan = _derive_plan_from_entitlements(entitlements)
+
+    downgrade_events = {"CANCELLATION", "EXPIRATION", "SUBSCRIPTION_PAUSED", "REFUND"}
+    upgrade_events = {"INITIAL_PURCHASE", "RENEWAL", "PRODUCT_CHANGE", "UNCANCELLATION", "NON_RENEWING_PURCHASE"}
+
+    if new_plan == "free" and event_type in upgrade_events:
+        guessed = _plan_from_product_id(product_id)
+        if guessed:
+            new_plan = guessed
+
+    if event_type in downgrade_events:
+        new_plan = "free"
+
+    try:
+        await db.revenuecat_events.insert_one({
+            "event_id": event.get("id") or f"rc_{uuid.uuid4().hex[:12]}",
+            "source": "webhook",
+            "event_type": event_type,
+            "app_user_id": app_user_id,
+            "aliases": aliases,
+            "product_id": product_id,
+            "derived_plan": new_plan,
+            "raw": event,
+            "created_at": utcnow(),
+        })
+    except Exception as e:
+        logger.warning(f"Failed to persist RC event: {e}")
+
+    updated = 0
+    for uid in candidates:
+        res = await db.users.update_one(
+            {"user_id": uid},
+            {"$set": {"plan": new_plan, "iap_provider": "revenuecat", "iap_updated_at": utcnow()}},
+        )
+        updated += res.modified_count
+        if res.matched_count > 0:
+            break
+
+    logger.info(
+        f"RevenueCat webhook - event={event_type} user={app_user_id} product={product_id} -> plan={new_plan} (updated={updated})"
+    )
+
+    if event_type == "TEST":
+        return {"status": "ok", "note": "Test webhook received successfully"}
+
+    return {"status": "ok", "plan": new_plan, "event_type": event_type, "updated": updated}
+
+
 
 
 @api.get("/stripe/payments")

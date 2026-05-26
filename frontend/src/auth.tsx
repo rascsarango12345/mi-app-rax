@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { storage } from "@/src/utils/storage";
 import { apiGet, apiPost } from "@/src/api";
+import { initRevenueCat, logOutRevenueCat, addCustomerInfoUpdateListener, planFromCustomerInfo } from "@/src/revenuecat";
 
 export type RaxUser = {
   user_id: string;
@@ -37,6 +38,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const me = await apiGet("/auth/me");
       setUser(me as RaxUser);
+      // Init RevenueCat on iOS with this user id (no-op on web/android)
+      try { await initRevenueCat((me as RaxUser).user_id); } catch {}
     } catch {
       setUser(null);
       await storage.secureRemove("rax_token");
@@ -51,9 +54,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [refresh]);
 
+  // Listen for entitlement changes from RevenueCat (iOS only). When an active
+  // subscription appears (purchase / renewal / restore), sync to backend so
+  // MongoDB's `plan` field stays in sync — even if the screen-level sync fails.
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = addCustomerInfoUpdateListener(async (info: any) => {
+      try {
+        const newPlan = planFromCustomerInfo(info);
+        if (newPlan && newPlan !== user.plan) {
+          await apiPost("/revenuecat/sync", {
+            app_user_id: user.user_id,
+            plan: newPlan,
+            entitlements: Object.keys(info?.entitlements?.active || {}),
+          }).catch(() => {});
+          await refresh();
+        }
+      } catch {}
+    });
+    return () => unsubscribe();
+  }, [user?.user_id, user?.plan, refresh]);
+
   const persist = async (token: string, u: RaxUser) => {
     await storage.secureSet("rax_token", token);
     setUser(u);
+    try { await initRevenueCat(u.user_id); } catch {}
   };
 
   const login = async (email: string, password: string) => {
@@ -73,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await persist(r.token, r.user);
   };
   const logout = async () => {
+    try { await logOutRevenueCat(); } catch {}
     await storage.secureRemove("rax_token");
     setUser(null);
   };
