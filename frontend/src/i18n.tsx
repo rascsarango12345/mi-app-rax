@@ -167,13 +167,9 @@ const T = {
   limit_reached: { es: "Has alcanzado el límite diario", en: "You've reached the daily limit", hi: "दैनिक सीमा पूरी हो गई", zh: "已达每日限额", ru: "Достигнут дневной лимит" },
   upgrade_for_more: { es: "Mejora tu plan para más", en: "Upgrade plan for more", hi: "अधिक के लिए प्लान अपग्रेड करें", zh: "升级以获得更多", ru: "Улучшите план для большего" },
 
-  // Common
-  error: { es: "Error", en: "Error", hi: "त्रुटि", zh: "错误", ru: "Ошибка" },
+  // Common (additional)
   notice: { es: "Aviso", en: "Notice", hi: "सूचना", zh: "通知", ru: "Уведомление" },
-  cancel: { es: "Cancelar", en: "Cancel", hi: "रद्द करें", zh: "取消", ru: "Отмена" },
-  ok: { es: "OK", en: "OK", hi: "ठीक है", zh: "确定", ru: "ОК" },
   retry: { es: "Reintentar", en: "Retry", hi: "पुनः प्रयास करें", zh: "重试", ru: "Повторить" },
-  loading: { es: "Cargando...", en: "Loading...", hi: "लोड हो रहा है...", zh: "加载中...", ru: "Загрузка..." },
   privacy_policy: { es: "Política de Privacidad", en: "Privacy Policy", hi: "गोपनीयता नीति", zh: "隐私政策", ru: "Политика конфиденциальности" },
   please_login: { es: "Inicia sesión primero", en: "Please sign in first", hi: "पहले साइन इन करें", zh: "请先登录", ru: "Сначала войдите" },
 
