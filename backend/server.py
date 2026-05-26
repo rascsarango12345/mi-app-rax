@@ -435,7 +435,8 @@ async def health_check():
 # ============================================================
 # 📜 LEGAL PAGES — Privacy Policy & Terms of Service (HTML)
 # These are required URLs for App Store Connect submission.
-# Public, no auth, served as plain HTML so reviewers can open them in a browser.
+# Public, no auth, served as HTML so reviewers can open them in a browser.
+# Supports ?lang=es|en|hi|zh|ru
 # ============================================================
 
 _LEGAL_CSS = """
@@ -466,8 +467,353 @@ _LEGAL_CSS = """
           -webkit-text-fill-color: transparent; }
   hr { border: 0; border-top: 1px solid rgba(0,0,0,0.08); margin: 30px 0; }
   a { color: #008080; }
+  select.lang { float: right; padding: 4px 8px; border-radius: 6px; }
 </style>
 """
+
+_LANG_PICKER = """
+<form method="get" style="text-align:right;margin-bottom:6px">
+  <select class="lang" name="lang" onchange="this.form.submit()">
+    <option value="en">🇺🇸 English</option>
+    <option value="es">🇪🇸 Español</option>
+    <option value="hi">🇮🇳 हिन्दी</option>
+    <option value="zh">🇨🇳 中文</option>
+    <option value="ru">🇷🇺 Русский</option>
+  </select>
+</form>
+<script>
+(function() {
+  try {
+    var u = new URL(window.location.href);
+    var L = u.searchParams.get('lang') || 'en';
+    var sel = document.querySelector('select.lang');
+    if (sel) sel.value = L;
+  } catch(e) {}
+})();
+</script>
+"""
+
+# ---- Privacy Policy translations ----
+PRIVACY_TEXT = {
+    "en": {
+        "badge": "PRIVACY POLICY",
+        "title": "Privacy Policy",
+        "effective": "Effective date: May 21, 2026 · Last updated: May 21, 2026",
+        "intro": "RAX AI (\"we\", \"our\", \"us\") is operated by RASC / Sarango Cabrera. This Privacy Policy describes how we collect, use, and protect your information when you use the RAX AI mobile and web application (the \"Service\").",
+        "h_collect": "1. Information We Collect",
+        "collect": "<li><strong>Account data:</strong> email address, display name, and authentication identifier.</li><li><strong>Conversation data:</strong> messages, images, audio recordings, and PDF files you submit to the AI features, plus the AI-generated responses.</li><li><strong>Subscription data:</strong> billing plan tier, subscription status and renewal dates (Apple In-App Purchases on iOS; Stripe on Web/Android). We never see full card numbers.</li><li><strong>Device data:</strong> device type, OS version, locale, time zone, and crash diagnostics.</li><li><strong>Usage data:</strong> number of messages, images, and photos used per day (to enforce plan quotas).</li>",
+        "h_use": "2. How We Use Your Information",
+        "use": "<li>To provide the AI conversation, image generation, voice, file analysis, and Studio features.</li><li>To enforce plan limits (Free, Premium, Pro) and process subscription purchases.</li><li>To improve the Service, detect abuse, and respond to support requests.</li><li>To comply with legal obligations.</li>",
+        "h_3p": "3. Third-Party Services We Share Data With",
+        "3p_intro": "To deliver the AI features, the content you submit is processed by these providers under their own privacy policies:",
+        "3p_list": "<li><strong>Anthropic (Claude):</strong> text chat — <a href='https://www.anthropic.com/legal/privacy'>anthropic.com/legal/privacy</a></li><li><strong>OpenAI (Whisper &amp; TTS):</strong> voice — <a href='https://openai.com/policies/privacy-policy'>openai.com/policies/privacy-policy</a></li><li><strong>Google (Gemini Nano Banana):</strong> images — <a href='https://policies.google.com/privacy'>policies.google.com/privacy</a></li><li><strong>Apple In-App Purchases:</strong> iOS billing — <a href='https://www.apple.com/legal/privacy/'>apple.com/legal/privacy</a></li><li><strong>Stripe:</strong> web/Android billing — <a href='https://stripe.com/privacy'>stripe.com/privacy</a></li><li><strong>MongoDB Atlas:</strong> encrypted database hosting.</li>",
+        "3p_outro": "We do <strong>NOT</strong> sell your personal data. We do not show ads.",
+        "h_retain": "4. Data Retention",
+        "retain": "<li>Conversations are kept while you have an active account. Delete any conversation in-app to permanently remove it.</li><li>Account deletion: request at <a href='mailto:support@raxai.app'>support@raxai.app</a> or from in-app Support. We delete within 30 days.</li>",
+        "h_child": "5. Children's Privacy",
+        "child": "RAX AI is rated 12+. The Service is not directed to children under 13. We do not knowingly collect data from children under 13.",
+        "h_sec": "6. Security",
+        "sec": "We use HTTPS/TLS, bcrypt password hashing, JWT session tokens, and encrypted database storage.",
+        "h_rights": "7. Your Rights",
+        "rights": "Depending on your jurisdiction (GDPR, CCPA, etc.) you may have the right to access, correct, export, or delete your personal data. Email <a href='mailto:support@raxai.app'>support@raxai.app</a>.",
+        "h_changes": "8. Changes to This Policy",
+        "changes": "We may update this Policy from time to time. The \"Last updated\" date will change. Material changes will be announced in the app.",
+        "h_contact": "9. Contact",
+        "contact": "RAX AI — operated by RASC (Sarango Cabrera)<br/>Email: <a href='mailto:support@raxai.app'>support@raxai.app</a>",
+        "copyright": "© 2026 RAX AI by RASC. All rights reserved.",
+    },
+    "es": {
+        "badge": "POLÍTICA DE PRIVACIDAD",
+        "title": "Política de Privacidad",
+        "effective": "Fecha de vigencia: 21 de mayo de 2026 · Última actualización: 21 de mayo de 2026",
+        "intro": "RAX AI (\"nosotros\", \"nuestro\") es operada por RASC / Sarango Cabrera. Esta Política de Privacidad describe cómo recopilamos, usamos y protegemos tu información cuando usas la aplicación móvil y web de RAX AI (el \"Servicio\").",
+        "h_collect": "1. Información que Recopilamos",
+        "collect": "<li><strong>Datos de cuenta:</strong> correo electrónico, nombre de usuario e identificador de autenticación.</li><li><strong>Datos de conversación:</strong> los mensajes, imágenes, audios y archivos PDF que envías a las funciones de IA, además de las respuestas generadas.</li><li><strong>Datos de suscripción:</strong> nivel del plan, estado de la suscripción y fechas de renovación (Apple In-App Purchases en iOS; Stripe en Web/Android). Nunca vemos los números completos de tu tarjeta.</li><li><strong>Datos del dispositivo:</strong> tipo de dispositivo, versión del sistema operativo, idioma, zona horaria y diagnósticos de errores.</li><li><strong>Datos de uso:</strong> número de mensajes, imágenes y fotos usadas por día (para aplicar los límites del plan).</li>",
+        "h_use": "2. Cómo Usamos tu Información",
+        "use": "<li>Para proveer las funciones de chat IA, generación de imágenes, voz, análisis de archivos y herramientas del Studio.</li><li>Para aplicar los límites del plan (Free, Premium, Pro) y procesar suscripciones.</li><li>Para mejorar el Servicio, detectar abusos y responder a solicitudes de soporte.</li><li>Para cumplir con obligaciones legales.</li>",
+        "h_3p": "3. Servicios de Terceros con los que Compartimos Datos",
+        "3p_intro": "Para entregar las funciones de IA, el contenido que envías es procesado por estos proveedores bajo sus propias políticas de privacidad:",
+        "3p_list": "<li><strong>Anthropic (Claude):</strong> chat de texto — <a href='https://www.anthropic.com/legal/privacy'>anthropic.com/legal/privacy</a></li><li><strong>OpenAI (Whisper y TTS):</strong> voz — <a href='https://openai.com/policies/privacy-policy'>openai.com/policies/privacy-policy</a></li><li><strong>Google (Gemini Nano Banana):</strong> imágenes — <a href='https://policies.google.com/privacy'>policies.google.com/privacy</a></li><li><strong>Apple In-App Purchases:</strong> facturación iOS — <a href='https://www.apple.com/legal/privacy/'>apple.com/legal/privacy</a></li><li><strong>Stripe:</strong> facturación web/Android — <a href='https://stripe.com/privacy'>stripe.com/privacy</a></li><li><strong>MongoDB Atlas:</strong> almacenamiento cifrado.</li>",
+        "3p_outro": "<strong>NO</strong> vendemos tus datos personales. No mostramos anuncios.",
+        "h_retain": "4. Retención de Datos",
+        "retain": "<li>Las conversaciones se conservan mientras tu cuenta esté activa. Puedes eliminar cualquier conversación desde la app.</li><li>Eliminación de cuenta: solicítala en <a href='mailto:support@raxai.app'>support@raxai.app</a> o desde Soporte en la app. Eliminamos en 30 días.</li>",
+        "h_child": "5. Privacidad de Menores",
+        "child": "RAX AI tiene clasificación 12+. El Servicio no está dirigido a menores de 13 años. No recopilamos datos de menores de 13 a sabiendas.",
+        "h_sec": "6. Seguridad",
+        "sec": "Usamos HTTPS/TLS, hashes bcrypt para contraseñas, tokens JWT y almacenamiento cifrado.",
+        "h_rights": "7. Tus Derechos",
+        "rights": "Según tu jurisdicción (GDPR, CCPA, etc.) puedes tener derecho a acceder, corregir, exportar o eliminar tus datos. Escribe a <a href='mailto:support@raxai.app'>support@raxai.app</a>.",
+        "h_changes": "8. Cambios a esta Política",
+        "changes": "Podemos actualizar esta Política. La fecha de \"Última actualización\" cambiará. Los cambios importantes se anunciarán en la app.",
+        "h_contact": "9. Contacto",
+        "contact": "RAX AI — operado por RASC (Sarango Cabrera)<br/>Email: <a href='mailto:support@raxai.app'>support@raxai.app</a>",
+        "copyright": "© 2026 RAX AI por RASC. Todos los derechos reservados.",
+    },
+    "hi": {
+        "badge": "गोपनीयता नीति",
+        "title": "गोपनीयता नीति",
+        "effective": "प्रभावी तिथि: 21 मई 2026 · अंतिम अपडेट: 21 मई 2026",
+        "intro": "RAX AI को RASC / Sarango Cabrera द्वारा संचालित किया जाता है। यह गोपनीयता नीति वर्णन करती है कि हम आपकी जानकारी को कैसे एकत्रित, उपयोग और सुरक्षित रखते हैं।",
+        "h_collect": "1. हम क्या जानकारी एकत्रित करते हैं",
+        "collect": "<li><strong>खाता डेटा:</strong> ईमेल, नाम, प्रमाणीकरण आईडी।</li><li><strong>बातचीत डेटा:</strong> आपके द्वारा भेजे गए संदेश, चित्र, ऑडियो, PDF।</li><li><strong>सदस्यता डेटा:</strong> योजना का स्तर, स्थिति, नवीनीकरण तिथि।</li><li><strong>डिवाइस डेटा:</strong> डिवाइस प्रकार, OS संस्करण, समय क्षेत्र, क्रैश डायग्नोस्टिक।</li><li><strong>उपयोग डेटा:</strong> प्रति दिन उपयोग किए गए संदेश/चित्र/फ़ोटो की संख्या।</li>",
+        "h_use": "2. हम आपकी जानकारी का उपयोग कैसे करते हैं",
+        "use": "<li>AI चैट, चित्र निर्माण, आवाज़, फ़ाइल विश्लेषण और Studio सुविधाएँ प्रदान करने के लिए।</li><li>योजना सीमाओं को लागू करने और सदस्यता खरीद को संसाधित करने के लिए।</li><li>सेवा सुधार, दुरुपयोग का पता लगाने और सहायता प्रदान करने के लिए।</li><li>कानूनी दायित्वों का पालन करने के लिए।</li>",
+        "h_3p": "3. तृतीय-पक्ष सेवाएँ जिनके साथ हम डेटा साझा करते हैं",
+        "3p_intro": "AI सुविधाएँ देने के लिए, आपकी सामग्री इन प्रदाताओं द्वारा संसाधित होती है:",
+        "3p_list": "<li>Anthropic (Claude) — टेक्स्ट चैट</li><li>OpenAI (Whisper और TTS) — आवाज़</li><li>Google (Gemini Nano Banana) — चित्र</li><li>Apple In-App Purchases — iOS भुगतान</li><li>Stripe — वेब/Android भुगतान</li><li>MongoDB Atlas — एन्क्रिप्टेड डेटाबेस।</li>",
+        "3p_outro": "हम आपका व्यक्तिगत डेटा <strong>नहीं</strong> बेचते हैं। हम विज्ञापन नहीं दिखाते।",
+        "h_retain": "4. डेटा प्रतिधारण",
+        "retain": "<li>आपकी सक्रिय खाता अवधि तक बातचीत संग्रहीत रहती है। ऐप के अंदर किसी भी बातचीत को हटाएँ।</li><li>खाता हटाने का अनुरोध <a href='mailto:support@raxai.app'>support@raxai.app</a> पर भेजें। हम 30 दिनों में हटा देंगे।</li>",
+        "h_child": "5. बच्चों की गोपनीयता",
+        "child": "RAX AI 12+ के लिए रेटेड है। यह सेवा 13 वर्ष से कम उम्र के बच्चों के लिए नहीं है।",
+        "h_sec": "6. सुरक्षा",
+        "sec": "हम HTTPS/TLS, bcrypt पासवर्ड हैशिंग, JWT टोकन और एन्क्रिप्टेड स्टोरेज का उपयोग करते हैं।",
+        "h_rights": "7. आपके अधिकार",
+        "rights": "GDPR, CCPA के अनुसार आपके डेटा तक पहुँच, सुधार, निर्यात या हटाने का अधिकार है। <a href='mailto:support@raxai.app'>support@raxai.app</a> पर लिखें।",
+        "h_changes": "8. इस नीति में परिवर्तन",
+        "changes": "हम इस नीति को समय-समय पर अपडेट कर सकते हैं। महत्वपूर्ण परिवर्तन ऐप में घोषित किए जाएँगे।",
+        "h_contact": "9. संपर्क",
+        "contact": "RAX AI — RASC (Sarango Cabrera) द्वारा संचालित<br/>ईमेल: <a href='mailto:support@raxai.app'>support@raxai.app</a>",
+        "copyright": "© 2026 RAX AI by RASC. सर्वाधिकार सुरक्षित।",
+    },
+    "zh": {
+        "badge": "隐私政策",
+        "title": "隐私政策",
+        "effective": "生效日期：2026年5月21日 · 最后更新：2026年5月21日",
+        "intro": "RAX AI（\"我们\"）由 RASC / Sarango Cabrera 运营。本隐私政策说明我们如何收集、使用和保护您在使用 RAX AI 移动和网页应用程序时的信息。",
+        "h_collect": "1. 我们收集的信息",
+        "collect": "<li><strong>账户数据：</strong>电子邮件、显示名称、身份验证标识符。</li><li><strong>对话数据：</strong>您发送的消息、图像、录音和 PDF 文件。</li><li><strong>订阅数据：</strong>计划等级、订阅状态、续订日期。</li><li><strong>设备数据：</strong>设备类型、操作系统版本、语言、时区、崩溃诊断。</li><li><strong>使用数据：</strong>每天使用的消息、图像和照片数量。</li>",
+        "h_use": "2. 我们如何使用您的信息",
+        "use": "<li>提供 AI 聊天、图像生成、语音、文件分析和 Studio 功能。</li><li>执行计划限制（免费、Premium、Pro）并处理订阅购买。</li><li>改进服务、检测滥用并响应支持请求。</li><li>遵守法律义务。</li>",
+        "h_3p": "3. 我们与之共享数据的第三方服务",
+        "3p_intro": "为提供 AI 功能，您提交的内容由以下提供商处理：",
+        "3p_list": "<li>Anthropic (Claude) — 文本聊天</li><li>OpenAI (Whisper 和 TTS) — 语音</li><li>Google (Gemini Nano Banana) — 图像</li><li>Apple In-App Purchases — iOS 付款</li><li>Stripe — 网页/Android 付款</li><li>MongoDB Atlas — 加密数据库。</li>",
+        "3p_outro": "我们<strong>不会</strong>出售您的个人数据，也不显示广告。",
+        "h_retain": "4. 数据保留",
+        "retain": "<li>账户处于活动状态时，对话会被保留。可在应用中随时删除。</li><li>账户删除：发送邮件至 <a href='mailto:support@raxai.app'>support@raxai.app</a>，我们将在 30 天内删除。</li>",
+        "h_child": "5. 儿童隐私",
+        "child": "RAX AI 评级为 12+。本服务不面向 13 岁以下儿童。",
+        "h_sec": "6. 安全",
+        "sec": "我们使用 HTTPS/TLS、bcrypt 密码哈希、JWT 会话令牌和加密数据库存储。",
+        "h_rights": "7. 您的权利",
+        "rights": "根据您所在司法管辖区（GDPR、CCPA 等），您可能有权访问、更正、导出或删除您的数据。请发邮件至 <a href='mailto:support@raxai.app'>support@raxai.app</a>。",
+        "h_changes": "8. 政策变更",
+        "changes": "我们可能会不时更新本政策。重大变更将在应用中通知。",
+        "h_contact": "9. 联系方式",
+        "contact": "RAX AI — 由 RASC (Sarango Cabrera) 运营<br/>电子邮件：<a href='mailto:support@raxai.app'>support@raxai.app</a>",
+        "copyright": "© 2026 RAX AI by RASC. 保留所有权利。",
+    },
+    "ru": {
+        "badge": "ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ",
+        "title": "Политика конфиденциальности",
+        "effective": "Дата вступления в силу: 21 мая 2026 г. · Последнее обновление: 21 мая 2026 г.",
+        "intro": "RAX AI (\"мы\", \"наш\") управляется RASC / Sarango Cabrera. Эта Политика конфиденциальности описывает, как мы собираем, используем и защищаем вашу информацию при использовании мобильного и веб-приложения RAX AI.",
+        "h_collect": "1. Какую информацию мы собираем",
+        "collect": "<li><strong>Данные аккаунта:</strong> email, имя пользователя, идентификатор аутентификации.</li><li><strong>Данные разговоров:</strong> сообщения, изображения, аудиозаписи и PDF-файлы.</li><li><strong>Данные подписки:</strong> уровень тарифа, статус подписки, даты продления.</li><li><strong>Данные устройства:</strong> тип устройства, версия ОС, локаль, часовой пояс.</li><li><strong>Данные использования:</strong> количество использованных сообщений, изображений и фото в день.</li>",
+        "h_use": "2. Как мы используем вашу информацию",
+        "use": "<li>Для обеспечения AI-чата, генерации изображений, голоса, анализа файлов и функций Studio.</li><li>Для применения ограничений тарифа (Free, Premium, Pro) и обработки подписок.</li><li>Для улучшения сервиса, выявления злоупотреблений и поддержки.</li><li>Для выполнения юридических обязательств.</li>",
+        "h_3p": "3. Сторонние сервисы, с которыми мы делимся данными",
+        "3p_intro": "Для предоставления AI-функций ваш контент обрабатывается следующими провайдерами:",
+        "3p_list": "<li>Anthropic (Claude) — текстовый чат</li><li>OpenAI (Whisper и TTS) — голос</li><li>Google (Gemini Nano Banana) — изображения</li><li>Apple In-App Purchases — iOS-биллинг</li><li>Stripe — Web/Android-биллинг</li><li>MongoDB Atlas — зашифрованное хранилище.</li>",
+        "3p_outro": "Мы <strong>НЕ</strong> продаём ваши персональные данные. Мы не показываем рекламу.",
+        "h_retain": "4. Хранение данных",
+        "retain": "<li>Разговоры хранятся пока аккаунт активен. Удаляйте любой разговор внутри приложения.</li><li>Удаление аккаунта: запросите по <a href='mailto:support@raxai.app'>support@raxai.app</a>. Удалим за 30 дней.</li>",
+        "h_child": "5. Конфиденциальность детей",
+        "child": "RAX AI имеет рейтинг 12+. Сервис не предназначен для детей младше 13 лет.",
+        "h_sec": "6. Безопасность",
+        "sec": "Мы используем HTTPS/TLS, bcrypt-хеширование паролей, JWT-токены и зашифрованное хранилище.",
+        "h_rights": "7. Ваши права",
+        "rights": "В зависимости от юрисдикции (GDPR, CCPA и т.д.) вы можете иметь право на доступ, исправление, экспорт или удаление данных. Пишите на <a href='mailto:support@raxai.app'>support@raxai.app</a>.",
+        "h_changes": "8. Изменения политики",
+        "changes": "Мы можем обновлять эту Политику. Существенные изменения будут объявлены в приложении.",
+        "h_contact": "9. Контакты",
+        "contact": "RAX AI — управляется RASC (Sarango Cabrera)<br/>Email: <a href='mailto:support@raxai.app'>support@raxai.app</a>",
+        "copyright": "© 2026 RAX AI by RASC. Все права защищены.",
+    },
+}
+
+# ---- Terms of Service translations ----
+TERMS_TEXT = {
+    "en": {
+        "badge": "TERMS OF SERVICE",
+        "title": "Terms of Service (EULA)",
+        "effective": "Effective date: May 21, 2026 · Last updated: May 21, 2026",
+        "intro": "Welcome to RAX AI. By creating an account or using the Service you agree to these Terms of Service (\"Terms\"). If you do not agree, do not use the Service. This document also serves as the End User License Agreement (EULA) required by the Apple App Store.",
+        "sections": [
+            ("1. The Service", "RAX AI is an AI assistant that provides conversational chat, image generation, voice conversation, file analysis, content creator tools, and \"Studio\" features (AR lens, journal, roast mode, personal shopper). The Service may use third-party AI models (Anthropic Claude, OpenAI Whisper/TTS, Google Gemini)."),
+            ("2. Account &amp; Eligibility", "<ul><li>You must be at least 13 years old to create an account.</li><li>You are responsible for keeping your password safe.</li><li>One person per account. You may not share your account.</li></ul>"),
+            ("3. Subscriptions &amp; Billing", "<ul><li><strong>Plans:</strong> Free, Premium ($5.99 USD/month), Pro ($9.99 USD/month).</li><li><strong>Auto-renewal:</strong> subscriptions automatically renew unless canceled at least 24 hours before the renewal date.</li><li><strong>iOS:</strong> billing handled by Apple. Manage in your Apple ID → Subscriptions.</li><li><strong>Web/Android:</strong> billing handled by Stripe.</li><li><strong>Refunds:</strong> per platform policy.</li></ul>"),
+            ("4. Acceptable Use — Zero Tolerance for Objectionable Content", "You agree NOT to use RAX AI to:<ul><li>Generate illegal content, CSAM, terrorist or hate content.</li><li>Generate sexually explicit content involving real people or minors.</li><li>Create deepfakes or defamatory content.</li><li>Extract another user's data, reverse-engineer, or bypass safety systems.</li><li>Spam, phish, or violate export-control laws.</li></ul>Violations may result in immediate account termination without refund. Report abuse: <a href='mailto:support@raxai.app'>support@raxai.app</a>."),
+            ("5. AI Output Disclaimer", "AI responses may be inaccurate, incomplete, or biased. RAX AI is NOT a substitute for professional medical, legal, financial, or psychological advice. You are solely responsible for decisions based on AI output."),
+            ("6. Your Content", "<ul><li>You retain ownership of content you submit.</li><li>You grant us a limited license to process your content to provide the Service.</li><li>You confirm you have rights to submit the content.</li></ul>"),
+            ("7. Intellectual Property", "The RAX AI brand, software, and trademarks are owned by RASC (Sarango Cabrera)."),
+            ("8. Termination", "You can stop using the Service or delete your account anytime. We may suspend access if you violate these Terms."),
+            ("9. Disclaimer &amp; Limitation of Liability", "THE SERVICE IS PROVIDED \"AS IS\" WITHOUT WARRANTIES. Our total liability is limited to the amount you paid us in the 3 months before the claim."),
+            ("10. Changes to These Terms", "We may update these Terms. Continued use means acceptance."),
+            ("11. Governing Law", "Governed by the laws of the country where RASC is established."),
+            ("12. Contact", "RAX AI — RASC (Sarango Cabrera) · Email: <a href='mailto:support@raxai.app'>support@raxai.app</a>"),
+        ],
+        "copyright": "© 2026 RAX AI by RASC. All rights reserved.",
+    },
+    "es": {
+        "badge": "TÉRMINOS DE SERVICIO",
+        "title": "Términos de Servicio (EULA)",
+        "effective": "Fecha de vigencia: 21 de mayo de 2026 · Última actualización: 21 de mayo de 2026",
+        "intro": "Bienvenido a RAX AI. Al crear una cuenta o usar el Servicio aceptas estos Términos de Servicio (\"Términos\"). Si no estás de acuerdo, no uses el Servicio. Este documento también sirve como Acuerdo de Licencia de Usuario Final (EULA) requerido por el Apple App Store.",
+        "sections": [
+            ("1. El Servicio", "RAX AI es un asistente de IA que ofrece chat conversacional, generación de imágenes, conversación por voz, análisis de archivos, herramientas para creadores y funciones del \"Studio\" (lente AR, diario, modo roast, shopper personal). El Servicio puede usar modelos de IA de terceros (Anthropic Claude, OpenAI Whisper/TTS, Google Gemini)."),
+            ("2. Cuenta y Elegibilidad", "<ul><li>Debes tener al menos 13 años para crear una cuenta.</li><li>Eres responsable de mantener segura tu contraseña.</li><li>Una persona por cuenta. No puedes compartir tu cuenta.</li></ul>"),
+            ("3. Suscripciones y Facturación", "<ul><li><strong>Planes:</strong> Gratis, Premium ($5.99 USD/mes), Pro ($9.99 USD/mes).</li><li><strong>Renovación automática:</strong> las suscripciones se renuevan automáticamente a menos que canceles al menos 24 horas antes.</li><li><strong>iOS:</strong> facturación gestionada por Apple. Gestiona en tu ID de Apple → Suscripciones.</li><li><strong>Web/Android:</strong> facturación gestionada por Stripe.</li><li><strong>Reembolsos:</strong> según política de cada plataforma.</li></ul>"),
+            ("4. Uso Aceptable — Tolerancia Cero al Contenido Objetable", "Aceptas NO usar RAX AI para:<ul><li>Generar contenido ilegal, CSAM, contenido terrorista o de odio.</li><li>Generar contenido sexualmente explícito que involucre personas reales o menores.</li><li>Crear deepfakes o contenido difamatorio.</li><li>Extraer datos de otros usuarios, hacer ingeniería inversa o eludir sistemas de seguridad.</li><li>Hacer spam, phishing o violar leyes de control de exportación.</li></ul>Las infracciones pueden resultar en la terminación inmediata de la cuenta sin reembolso. Reportar abuso: <a href='mailto:support@raxai.app'>support@raxai.app</a>."),
+            ("5. Aviso sobre las Respuestas de IA", "Las respuestas de la IA pueden ser imprecisas, incompletas o sesgadas. RAX AI NO sustituye consejo médico, legal, financiero o psicológico profesional. Eres responsable de tus decisiones basadas en la IA."),
+            ("6. Tu Contenido", "<ul><li>Mantienes la propiedad del contenido que envías.</li><li>Nos otorgas una licencia limitada para procesarlo y brindar el Servicio.</li><li>Confirmas tener los derechos necesarios sobre el contenido.</li></ul>"),
+            ("7. Propiedad Intelectual", "La marca, software y marcas registradas de RAX AI pertenecen a RASC (Sarango Cabrera)."),
+            ("8. Terminación", "Puedes dejar de usar el Servicio o eliminar tu cuenta en cualquier momento. Podemos suspender tu acceso si violas estos Términos."),
+            ("9. Renuncia y Limitación de Responsabilidad", "EL SERVICIO SE PROVEE \"TAL CUAL\" SIN GARANTÍAS. Nuestra responsabilidad total se limita al monto pagado en los 3 meses anteriores al reclamo."),
+            ("10. Cambios a estos Términos", "Podemos actualizar estos Términos. El uso continuado implica aceptación."),
+            ("11. Ley Aplicable", "Regidos por las leyes del país donde RASC está establecido."),
+            ("12. Contacto", "RAX AI — RASC (Sarango Cabrera) · Email: <a href='mailto:support@raxai.app'>support@raxai.app</a>"),
+        ],
+        "copyright": "© 2026 RAX AI por RASC. Todos los derechos reservados.",
+    },
+    "hi": {
+        "badge": "सेवा की शर्तें",
+        "title": "सेवा की शर्तें (EULA)",
+        "effective": "प्रभावी तिथि: 21 मई 2026",
+        "intro": "RAX AI में आपका स्वागत है। खाता बनाकर या सेवा का उपयोग करके आप इन सेवा शर्तों से सहमत होते हैं।",
+        "sections": [
+            ("1. सेवा", "RAX AI एक AI सहायक है जो चैट, चित्र निर्माण, आवाज़, फ़ाइल विश्लेषण और Studio सुविधाएँ प्रदान करता है।"),
+            ("2. खाता और पात्रता", "खाता बनाने के लिए आपकी आयु कम से कम 13 वर्ष होनी चाहिए।"),
+            ("3. सदस्यता और भुगतान", "<ul><li>योजनाएँ: मुफ्त, Premium ($5.99/माह), Pro ($9.99/माह)।</li><li>स्वचालित नवीनीकरण लागू है।</li><li>iOS: Apple द्वारा संभाला जाता है। Web/Android: Stripe द्वारा।</li></ul>"),
+            ("4. स्वीकार्य उपयोग", "आप RAX AI का उपयोग अवैध सामग्री, CSAM, घृणा, deepfakes या किसी भी कानून के उल्लंघन के लिए नहीं करेंगे।"),
+            ("5. AI आउटपुट अस्वीकरण", "AI प्रतिक्रियाएँ गलत हो सकती हैं। RAX AI चिकित्सा, कानूनी या वित्तीय सलाह का विकल्प नहीं है।"),
+            ("6. आपकी सामग्री", "आप अपनी सामग्री के स्वामी बने रहते हैं। आप हमें इसे संसाधित करने का सीमित अधिकार देते हैं।"),
+            ("7. बौद्धिक संपदा", "RAX AI ब्रांड RASC (Sarango Cabrera) के स्वामित्व में है।"),
+            ("8. समाप्ति", "आप कभी भी सेवा का उपयोग बंद कर सकते हैं।"),
+            ("9. देयता की सीमा", "सेवा \"जैसी है\" प्रदान की जाती है।"),
+            ("10. परिवर्तन", "हम इन शर्तों को अपडेट कर सकते हैं।"),
+            ("11. लागू कानून", "RASC के स्थापना देश के कानूनों द्वारा शासित।"),
+            ("12. संपर्क", "RAX AI · ईमेल: <a href='mailto:support@raxai.app'>support@raxai.app</a>"),
+        ],
+        "copyright": "© 2026 RAX AI by RASC. सर्वाधिकार सुरक्षित।",
+    },
+    "zh": {
+        "badge": "服务条款",
+        "title": "服务条款 (EULA)",
+        "effective": "生效日期：2026年5月21日",
+        "intro": "欢迎使用 RAX AI。创建账户或使用服务即表示您同意这些服务条款。",
+        "sections": [
+            ("1. 服务", "RAX AI 是一款 AI 助手，提供聊天、图像生成、语音对话、文件分析和 Studio 功能。"),
+            ("2. 账户与资格", "您必须年满 13 岁才能创建账户。请妥善保管您的密码。"),
+            ("3. 订阅与计费", "<ul><li>方案：免费、Premium（$5.99/月）、Pro（$9.99/月）。</li><li>自动续订，除非提前 24 小时取消。</li><li>iOS：由 Apple 处理。Web/Android：由 Stripe 处理。</li></ul>"),
+            ("4. 可接受使用", "您同意不将 RAX AI 用于非法内容、CSAM、仇恨内容、深度伪造或绕过安全系统。"),
+            ("5. AI 输出免责声明", "AI 回复可能不准确。RAX AI 不能替代专业医疗、法律或财务建议。"),
+            ("6. 您的内容", "您保留对所提交内容的所有权，并授予我们处理内容以提供服务的有限许可。"),
+            ("7. 知识产权", "RAX AI 品牌由 RASC (Sarango Cabrera) 所有。"),
+            ("8. 终止", "您可以随时停止使用服务。"),
+            ("9. 责任限制", "服务按\"原样\"提供，不附带保证。"),
+            ("10. 条款变更", "我们可能会更新这些条款。"),
+            ("11. 适用法律", "受 RASC 所在国家的法律管辖。"),
+            ("12. 联系方式", "RAX AI · 电子邮件：<a href='mailto:support@raxai.app'>support@raxai.app</a>"),
+        ],
+        "copyright": "© 2026 RAX AI by RASC. 保留所有权利。",
+    },
+    "ru": {
+        "badge": "УСЛОВИЯ ИСПОЛЬЗОВАНИЯ",
+        "title": "Условия использования (EULA)",
+        "effective": "Дата вступления в силу: 21 мая 2026 г.",
+        "intro": "Добро пожаловать в RAX AI. Создавая аккаунт или используя Сервис, вы соглашаетесь с этими Условиями использования.",
+        "sections": [
+            ("1. Сервис", "RAX AI — это AI-ассистент, который предоставляет чат, генерацию изображений, голосовые разговоры, анализ файлов и функции Studio."),
+            ("2. Аккаунт и право использования", "Вам должно быть не менее 13 лет, чтобы создать аккаунт. Храните пароль в безопасности."),
+            ("3. Подписки и оплата", "<ul><li>Тарифы: Free, Premium ($5.99/мес), Pro ($9.99/мес).</li><li>Автопродление действует, если не отменено за 24 часа.</li><li>iOS: оплата через Apple. Web/Android: через Stripe.</li></ul>"),
+            ("4. Допустимое использование", "Вы соглашаетесь не использовать RAX AI для незаконного контента, CSAM, контента ненависти, deepfake или обхода систем безопасности."),
+            ("5. Отказ от ответственности за AI", "Ответы AI могут быть неточными. RAX AI не заменяет профессиональную медицинскую, юридическую или финансовую консультацию."),
+            ("6. Ваш контент", "Вы сохраняете право собственности на отправленный контент и предоставляете нам ограниченную лицензию на его обработку."),
+            ("7. Интеллектуальная собственность", "Бренд RAX AI принадлежит RASC (Sarango Cabrera)."),
+            ("8. Прекращение", "Вы можете прекратить использование Сервиса в любое время."),
+            ("9. Ограничение ответственности", "Сервис предоставляется \"как есть\" без гарантий."),
+            ("10. Изменения условий", "Мы можем обновлять эти Условия."),
+            ("11. Применимое право", "Регулируется законодательством страны, в которой учреждён RASC."),
+            ("12. Контакты", "RAX AI · Email: <a href='mailto:support@raxai.app'>support@raxai.app</a>"),
+        ],
+        "copyright": "© 2026 RAX AI by RASC. Все права защищены.",
+    },
+}
+
+
+def _build_privacy_html(lang: str) -> str:
+    t = PRIVACY_TEXT.get(lang) or PRIVACY_TEXT["en"]
+    return f"""<!DOCTYPE html>
+<html lang="{lang}"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{t['title']} — RAX AI</title>{_LEGAL_CSS}</head><body>
+{_LANG_PICKER}
+<div class="header"><span class="logo">RAX AI</span><span class="badge">{t['badge']}</span></div>
+<p class="muted">{t['effective']}</p>
+<h1>{t['title']}</h1>
+<p>{t['intro']}</p>
+<h2>{t['h_collect']}</h2><ul>{t['collect']}</ul>
+<h2>{t['h_use']}</h2><ul>{t['use']}</ul>
+<h2>{t['h_3p']}</h2><p>{t['3p_intro']}</p><ul>{t['3p_list']}</ul><p>{t['3p_outro']}</p>
+<h2>{t['h_retain']}</h2><ul>{t['retain']}</ul>
+<h2>{t['h_child']}</h2><p>{t['child']}</p>
+<h2>{t['h_sec']}</h2><p>{t['sec']}</p>
+<h2>{t['h_rights']}</h2><p>{t['rights']}</p>
+<h2>{t['h_changes']}</h2><p>{t['changes']}</p>
+<h2>{t['h_contact']}</h2><p>{t['contact']}</p>
+<hr/><p class="muted">{t['copyright']}</p>
+</body></html>
+"""
+
+
+def _build_terms_html(lang: str) -> str:
+    t = TERMS_TEXT.get(lang) or TERMS_TEXT["en"]
+    sections_html = "".join(f"<h2>{title}</h2><p>{body}</p>" for title, body in t["sections"])
+    return f"""<!DOCTYPE html>
+<html lang="{lang}"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{t['title']} — RAX AI</title>{_LEGAL_CSS}</head><body>
+{_LANG_PICKER}
+<div class="header"><span class="logo">RAX AI</span><span class="badge">{t['badge']}</span></div>
+<p class="muted">{t['effective']}</p>
+<h1>{t['title']}</h1>
+<p>{t['intro']}</p>
+{sections_html}
+<hr/><p class="muted">{t['copyright']}</p>
+</body></html>
+"""
+
+
+def _normalize_lang(lang: Optional[str]) -> str:
+    if not lang:
+        return "en"
+    code = lang.strip().lower().split("-")[0]
+    return code if code in {"en", "es", "hi", "zh", "ru"} else "en"
+
+
+@api.get("/legal/privacy", response_class=HTMLResponse, include_in_schema=False)
+async def legal_privacy(lang: Optional[str] = None):
+    """Public Privacy Policy page (HTML) — required for App Store Connect. Multi-language."""
+    return HTMLResponse(content=_build_privacy_html(_normalize_lang(lang)), status_code=200)
+
+
+@api.get("/legal/terms", response_class=HTMLResponse, include_in_schema=False)
+async def legal_terms(lang: Optional[str] = None):
+    """Public Terms of Service / EULA page (HTML) — required for App Store Connect. Multi-language."""
+    return HTMLResponse(content=_build_terms_html(_normalize_lang(lang)), status_code=200)
+
+
+@api.get("/legal", include_in_schema=False)
+async def legal_index():
+    """Convenience JSON listing the legal endpoints."""
+    return {
+        "privacy_policy": "/api/legal/privacy?lang=en|es|hi|zh|ru",
+        "terms_of_service": "/api/legal/terms?lang=en|es|hi|zh|ru",
+        "eula": "/api/legal/terms?lang=en|es|hi|zh|ru",
+        "supported_languages": ["en", "es", "hi", "zh", "ru"],
+    }
+
 
 _PRIVACY_HTML = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/>

@@ -53,7 +53,7 @@ export default function ChatThread() {
   const takePhoto = async () => {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) { showMsg("Necesitamos permiso para usar la cámara"); return; }
+      if (!perm.granted) { showMsg(t("cam_permission")); return; }
       const r = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.7,
@@ -70,7 +70,7 @@ export default function ChatThread() {
   const pickImage = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) { showMsg("Necesitamos permiso para tu galería"); return; }
+      if (!perm.granted) { showMsg(t("gallery_permission")); return; }
       const r = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.7,
@@ -105,7 +105,7 @@ export default function ChatThread() {
       } else {
         b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
       }
-      if (!b64 || b64.length < 200) { showMsg("PDF vacío o demasiado pequeño"); return; }
+      if (!b64 || b64.length < 200) { showMsg(t("pdf_too_small")); return; }
       setPendingPdf({ base64: b64, name: asset.name || "documento.pdf" });
       setPendingImage(null);
     } catch (e: any) { showMsg(e?.message || "Error abriendo PDF"); }
@@ -203,7 +203,7 @@ export default function ChatThread() {
         {
           message_id: `err_${Date.now()}`,
           role: "assistant",
-          content: `⚠️ Error: ${e?.message || "Algo salió mal"}`,
+          content: `⚠️ Error: ${e?.message || t("something_went_wrong")}`,
           created_at: new Date().toISOString(),
         },
       ]);

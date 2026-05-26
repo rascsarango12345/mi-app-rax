@@ -14,17 +14,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Radius, Spacing } from "@/src/theme";
 import { apiPost } from "@/src/api";
+import { useT } from "@/src/i18n";
 
 const STYLES = [
-  { id: "realista", label: "Realista", icon: "camera-outline" as const },
-  { id: "anime", label: "Anime", icon: "sparkles-outline" as const },
-  { id: "futurista", label: "Futurista", icon: "planet-outline" as const },
+  { id: "realista", labelKey: "style_realistic", icon: "camera-outline" as const },
+  { id: "anime", labelKey: "style_anime", icon: "sparkles-outline" as const },
+  { id: "futurista", labelKey: "style_futuristic", icon: "planet-outline" as const },
   { id: "gamer", label: "Gamer", icon: "game-controller-outline" as const },
   { id: "caricatura", label: "Caricatura", icon: "happy-outline" as const },
-  { id: "cinematico", label: "Cinemático", icon: "film-outline" as const },
+  { id: "cinematico", labelKey: "style_cinematic", icon: "film-outline" as const },
 ];
 
 export default function ImageScreen() {
+  const { t } = useT();
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState("realista");
   const [loading, setLoading] = useState(false);
@@ -52,7 +54,7 @@ export default function ImageScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
-        <Text style={styles.label}>Estilo</Text>
+        <Text style={t(styles.labelKey as any)}>Estilo</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
           {STYLES.map((s) => (
             <TouchableOpacity
@@ -63,7 +65,7 @@ export default function ImageScreen() {
             >
               <Ionicons name={s.icon} size={14} color={style === s.id ? "#000" : Colors.electricBlue} />
               <Text style={[styles.chipText, style === s.id && { color: "#000", fontWeight: "700" }]}>
-                {s.label}
+                {t(s.labelKey as any)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -73,7 +75,7 @@ export default function ImageScreen() {
         <TextInput
           testID="image-prompt"
           style={styles.input}
-          placeholder="Ej: Un astronauta cabalgando un dragón sobre Marte"
+          placeholder={t("image_placeholder")}
           placeholderTextColor={Colors.textMuted}
           value={prompt}
           onChangeText={setPrompt}

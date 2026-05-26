@@ -188,7 +188,7 @@ export default function SupportScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={26} color={Colors.electricBlue} />
         </TouchableOpacity>
-        <Text style={styles.title}>{isAdmin ? "Soporte Manager" : "Soporte Técnico"}</Text>
+        <Text style={styles.title}>{isAdmin ? t("support_manager") : t("support_technical")}</Text>
         <TouchableOpacity testID="btn-new-ticket" onPress={() => setShowNew(true)}>
           <Ionicons name="add" size={26} color={Colors.electricBlue} />
         </TouchableOpacity>
@@ -200,11 +200,11 @@ export default function SupportScreen() {
         <View style={styles.empty}>
           <Ionicons name="chatbubble-ellipses-outline" size={64} color={Colors.electricBlue} />
           <Text style={styles.emptyTitle}>
-            {isAdmin ? "No hay tickets aún" : "¿Necesitas ayuda?"}
+            {isAdmin ? t("no_tickets_yet") : t("need_help_question")}
           </Text>
           <Text style={styles.emptySub}>
             {isAdmin
-              ? "Aquí verás cuando los usuarios reporten problemas."
+              ? t("tickets_users_note")
               : "Abre un ticket y te responderemos lo antes posible."}
           </Text>
           {!isAdmin && (

@@ -84,7 +84,7 @@ export default function VoiceScreen() {
   const startRecording = async () => {
     try {
       const perm = await Audio.requestPermissionsAsync();
-      if (!perm.granted) { showError("Necesitamos permiso del micrófono"); return; }
+      if (!perm.granted) { showError(t("voice_mic_required")); return; }
 
       // Stop any playing audio
       if (sound) { await sound.unloadAsync().catch(() => {}); setSound(null); }
@@ -100,7 +100,7 @@ export default function VoiceScreen() {
       setRecording(rec);
       setState("recording");
     } catch (e: any) {
-      showError("Error iniciando grabación: " + (e?.message || ""));
+      showError(t("voice_start_error") + ": " + (e?.message || ""));
       setState("idle");
     }
   };
@@ -108,12 +108,12 @@ export default function VoiceScreen() {
   const stopAndSend = async () => {
     if (!recording) return;
     setState("processing");
-    setStage("Procesando tu voz...");
+    setStage(t("voice_processing"));
     try {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
       setRecording(null);
-      if (!uri) { showError("No se generó el audio"); setState("idle"); return; }
+      if (!uri) { showError(t("voice_no_audio")); setState("idle"); return; }
 
       // === Read audio as base64 — platform-specific (most reliable approach) ===
       let audioBase64 = "";
@@ -157,7 +157,7 @@ export default function VoiceScreen() {
       }
 
       if (!audioBase64 || audioBase64.length < 100) {
-        throw new Error("Audio vacío. Asegúrate de haber grabado al menos 1 segundo.");
+        throw new Error(t("voice_empty"));
       }
 
       // CRITICAL iOS FIX: reset audio mode so TTS plays through the MAIN speaker, not the ear piece.

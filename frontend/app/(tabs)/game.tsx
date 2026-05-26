@@ -4,10 +4,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Radius, Spacing } from "@/src/theme";
 import { apiGet, apiPost } from "@/src/api";
+import { useT } from "@/src/i18n";
 
 type Game = { game_id: string; scrambled: string; length: number; category: string; hint: string; answer_hash: string };
 
 export default function GameScreen() {
+  const { t } = useT();
   const [game, setGame] = useState<Game | null>(null);
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,7 +44,7 @@ export default function GameScreen() {
         setFeedback({ ok: true, msg: `¡Correcto! 🎉 +${showHint ? 5 : 10} puntos` });
         setTimeout(() => newGame(), 1800);
       } else {
-        setFeedback({ ok: false, msg: "❌ No es esa. ¡Sigue intentando!" });
+        setFeedback({ ok: false, msg: t("game_wrong") });
       }
     } finally {
       setLoading(false);

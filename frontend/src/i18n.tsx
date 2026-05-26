@@ -159,10 +159,105 @@ const T = {
   shopper_searching: { es: "Buscando los mejores productos...", en: "Finding the best products...", hi: "सर्वोत्तम उत्पाद ढूंढ रहा है...", zh: "正在寻找最佳产品...", ru: "Ищем лучшие продукты..." },
   shopper_search_again: { es: "Nueva búsqueda", en: "New search", hi: "नई खोज", zh: "新搜索", ru: "Новый поиск" },
 
+  // Profile additional
+  per_month_short: { es: "/mes", en: "/mo", hi: "/माह", zh: "/月", ru: "/мес" },
+
   // Limits
   daily_limit_label: { es: "Hoy", en: "Today", hi: "आज", zh: "今天", ru: "Сегодня" },
   limit_reached: { es: "Has alcanzado el límite diario", en: "You've reached the daily limit", hi: "दैनिक सीमा पूरी हो गई", zh: "已达每日限额", ru: "Достигнут дневной лимит" },
   upgrade_for_more: { es: "Mejora tu plan para más", en: "Upgrade plan for more", hi: "अधिक के लिए प्लान अपग्रेड करें", zh: "升级以获得更多", ru: "Улучшите план для большего" },
+
+  // Common
+  error: { es: "Error", en: "Error", hi: "त्रुटि", zh: "错误", ru: "Ошибка" },
+  notice: { es: "Aviso", en: "Notice", hi: "सूचना", zh: "通知", ru: "Уведомление" },
+  cancel: { es: "Cancelar", en: "Cancel", hi: "रद्द करें", zh: "取消", ru: "Отмена" },
+  ok: { es: "OK", en: "OK", hi: "ठीक है", zh: "确定", ru: "ОК" },
+  retry: { es: "Reintentar", en: "Retry", hi: "पुनः प्रयास करें", zh: "重试", ru: "Повторить" },
+  loading: { es: "Cargando...", en: "Loading...", hi: "लोड हो रहा है...", zh: "加载中...", ru: "Загрузка..." },
+  privacy_policy: { es: "Política de Privacidad", en: "Privacy Policy", hi: "गोपनीयता नीति", zh: "隐私政策", ru: "Политика конфиденциальности" },
+  please_login: { es: "Inicia sesión primero", en: "Please sign in first", hi: "पहले साइन इन करें", zh: "请先登录", ru: "Сначала войдите" },
+
+  // Premium plan perks
+  plan_free_name: { es: "Gratis", en: "Free", hi: "मुफ्त", zh: "免费", ru: "Бесплатно" },
+  plan_premium_name: { es: "Premium", en: "Premium", hi: "प्रीमियम", zh: "Premium", ru: "Premium" },
+  plan_pro_name: { es: "Pro", en: "Pro", hi: "प्रो", zh: "Pro", ru: "Pro" },
+  perk_30_msg: { es: "30 mensajes/día", en: "30 messages/day", hi: "30 संदेश/दिन", zh: "每天30条消息", ru: "30 сообщений/день" },
+  perk_5_img: { es: "5 imágenes/día", en: "5 images/day", hi: "5 चित्र/दिन", zh: "每天5张图片", ru: "5 изображений/день" },
+  perk_basic_voices: { es: "Voces básicas", en: "Basic voices", hi: "बुनियादी आवाज़ें", zh: "基础语音", ru: "Базовые голоса" },
+  perk_chat_access: { es: "Acceso al chat", en: "Chat access", hi: "चैट एक्सेस", zh: "聊天访问", ru: "Доступ к чату" },
+  perk_1000_msg: { es: "1,000 mensajes/día", en: "1,000 messages/day", hi: "1,000 संदेश/दिन", zh: "每天1,000条消息", ru: "1 000 сообщений/день" },
+  perk_200_img: { es: "200 imágenes/día", en: "200 images/day", hi: "200 चित्र/दिन", zh: "每天200张图片", ru: "200 изображений/день" },
+  perk_4_voices: { es: "4 voces premium", en: "4 premium voices", hi: "4 प्रीमियम आवाज़ें", zh: "4个高级语音", ru: "4 премиум голоса" },
+  perk_no_ads: { es: "Sin anuncios", en: "No ads", hi: "कोई विज्ञापन नहीं", zh: "无广告", ru: "Без рекламы" },
+  perk_priority_support: { es: "Soporte prioritario", en: "Priority support", hi: "प्राथमिकता समर्थन", zh: "优先支持", ru: "Приоритетная поддержка" },
+  perk_unlimited_all: { es: "Ilimitado todo", en: "Unlimited everything", hi: "सब कुछ असीमित", zh: "无限制一切", ru: "Безлимит на всё" },
+  perk_private_api: { es: "API privada", en: "Private API", hi: "निजी API", zh: "私有 API", ru: "Приватный API" },
+  perk_advanced_analysis: { es: "Análisis avanzado", en: "Advanced analytics", hi: "उन्नत विश्लेषण", zh: "高级分析", ru: "Расширенная аналитика" },
+  perk_early_access: { es: "Acceso anticipado", en: "Early access", hi: "जल्दी एक्सेस", zh: "抢先体验", ru: "Ранний доступ" },
+  perk_support_247: { es: "Soporte 24/7", en: "24/7 support", hi: "24/7 सहायता", zh: "24/7 支持", ru: "Поддержка 24/7" },
+  popular_badge: { es: "MÁS POPULAR", en: "MOST POPULAR", hi: "सबसे लोकप्रिय", zh: "最受欢迎", ru: "САМЫЙ ПОПУЛЯРНЫЙ" },
+  subscribe_to: { es: "Suscribirse a", en: "Subscribe to", hi: "सदस्यता लें", zh: "订阅", ru: "Подписаться на" },
+  already_have: { es: "Ya tienes", en: "You already have", hi: "आपके पास पहले से है", zh: "您已拥有", ru: "У вас уже есть" },
+  upgrade_subtitle: { es: "Mejora tu plan", en: "Upgrade your plan", hi: "अपना प्लान अपग्रेड करें", zh: "升级您的方案", ru: "Улучшите ваш план" },
+  upgrade_intro: { es: "Desbloquea todo el poder de RAX AI. Cancela cuando quieras.", en: "Unlock the full power of RAX AI. Cancel anytime.", hi: "RAX AI की पूरी शक्ति अनलॉक करें। कभी भी रद्द करें।", zh: "解锁 RAX AI 的全部功能。随时取消。", ru: "Откройте всю мощь RAX AI. Отмена в любой момент." },
+  loading_options: { es: "Cargando opciones...", en: "Loading options...", hi: "विकल्प लोड हो रहे हैं...", zh: "正在加载选项...", ru: "Загрузка опций..." },
+  restore_purchases: { es: "Restaurar compras", en: "Restore purchases", hi: "खरीदारी पुनर्स्थापित करें", zh: "恢复购买", ru: "Восстановить покупки" },
+  auto_renew_note: { es: "🔒 Renovación automática · Gestiona en Ajustes > Apple ID > Suscripciones · Cancela cuando quieras", en: "🔒 Auto-renewal · Manage in Settings > Apple ID > Subscriptions · Cancel anytime", hi: "🔒 स्वतः नवीनीकरण · सेटिंग्स > Apple ID > सदस्यताएँ", zh: "🔒 自动续订 · 在设置 > Apple ID > 订阅中管理", ru: "🔒 Авто-продление · Управление в Настройки > Apple ID > Подписки" },
+  cancel_anytime: { es: "🔒 Cancela cuando quieras", en: "🔒 Cancel anytime", hi: "🔒 कभी भी रद्द करें", zh: "🔒 随时取消", ru: "🔒 Отмена в любой момент" },
+  payment_success: { es: "✅ ¡Pago exitoso! Ahora eres", en: "✅ Payment successful! You're now", hi: "✅ भुगतान सफल! अब आप", zh: "✅ 支付成功！您现在是", ru: "✅ Оплата успешна! Теперь вы" },
+  payment_pending: { es: "⏳ Pago en proceso", en: "⏳ Payment processing", hi: "⏳ भुगतान प्रक्रिया में", zh: "⏳ 支付处理中", ru: "⏳ Платёж обрабатывается" },
+  payment_cancelled: { es: "Pago cancelado. Puedes intentarlo de nuevo.", en: "Payment cancelled. You can try again anytime.", hi: "भुगतान रद्द। आप फिर से प्रयास कर सकते हैं।", zh: "支付已取消。您可以稍后重试。", ru: "Платёж отменён. Можно повторить позже." },
+  sub_active_now: { es: "✅ ¡Suscripción activa! Ahora eres", en: "✅ Subscription active! You're now", hi: "✅ सदस्यता सक्रिय!", zh: "✅ 订阅已激活！", ru: "✅ Подписка активна!" },
+  sub_restored: { es: "✅ Suscripción restaurada", en: "✅ Subscription restored", hi: "✅ सदस्यता पुनर्स्थापित", zh: "✅ 订阅已恢复", ru: "✅ Подписка восстановлена" },
+  no_sub_found: { es: "No encontramos suscripciones activas en tu Apple ID.", en: "No active subscriptions found on your Apple ID.", hi: "आपके Apple ID पर कोई सक्रिय सदस्यता नहीं मिली।", zh: "在您的 Apple ID 中未找到有效订阅。", ru: "Не найдено активных подписок на вашем Apple ID." },
+  sub_login_required: { es: "Inicia sesión para suscribirte", en: "Please sign in to subscribe", hi: "सदस्यता के लिए साइन इन करें", zh: "请登录以订阅", ru: "Войдите, чтобы оформить подписку" },
+  sub_no_guest: { es: "Crea una cuenta (no invitado) para suscribirte", en: "Create an account (not guest) to subscribe", hi: "सदस्यता के लिए खाता बनाएँ", zh: "创建账户以订阅", ru: "Создайте аккаунт для подписки" },
+  sub_load_failed: { es: "No pude cargar las opciones. Intenta de nuevo.", en: "Could not load options. Please try again.", hi: "विकल्प लोड नहीं हो सके।", zh: "无法加载选项。", ru: "Не удалось загрузить опции." },
+
+  // Voice — personas & errors
+  voice_persona_warm: { es: "Cálida y amigable", en: "Warm and friendly", hi: "गर्म और मित्रवत", zh: "温暖友好", ru: "Тёплая и дружелюбная" },
+  voice_persona_pro: { es: "Profesional", en: "Professional", hi: "पेशेवर", zh: "专业", ru: "Профессиональная" },
+  voice_persona_deep: { es: "Voz grave y elegante", en: "Deep and elegant voice", hi: "गहरी और सुरुचिपूर्ण आवाज़", zh: "深沉而优雅的声音", ru: "Глубокий, элегантный голос" },
+  voice_persona_energetic: { es: "Joven y enérgico", en: "Young and energetic", hi: "युवा और ऊर्जावान", zh: "年轻有活力", ru: "Молодой и энергичный" },
+  gender_female: { es: "Mujer", en: "Female", hi: "महिला", zh: "女性", ru: "Женский" },
+  gender_male: { es: "Hombre", en: "Male", hi: "पुरुष", zh: "男性", ru: "Мужской" },
+  voice_mic_required: { es: "Necesitamos permiso del micrófono", en: "We need microphone permission", hi: "हमें माइक्रोफ़ोन अनुमति चाहिए", zh: "我们需要麦克风权限", ru: "Нужно разрешение на микрофон" },
+  voice_start_error: { es: "Error iniciando grabación", en: "Error starting recording", hi: "रिकॉर्डिंग शुरू करने में त्रुटि", zh: "开始录音时出错", ru: "Ошибка начала записи" },
+  voice_no_audio: { es: "No se generó el audio", en: "Audio was not generated", hi: "ऑडियो उत्पन्न नहीं हुआ", zh: "未生成音频", ru: "Аудио не сгенерировано" },
+  voice_empty: { es: "Audio vacío. Graba al menos 1 segundo.", en: "Empty audio. Record at least 1 second.", hi: "खाली ऑडियो। कम से कम 1 सेकंड रिकॉर्ड करें।", zh: "音频为空。请至少录制1秒。", ru: "Пустое аудио. Запишите хотя бы 1 секунду." },
+  voice_thinking: { es: "está pensando...", en: "is thinking...", hi: "सोच रहा है...", zh: "正在思考...", ru: "думает..." },
+  voice_speaking: { es: "habla...", en: "is speaking...", hi: "बोल रहा है...", zh: "正在说话...", ru: "говорит..." },
+  voice_processing: { es: "Procesando tu voz...", en: "Processing your voice...", hi: "आपकी आवाज़ संसाधित हो रही है...", zh: "正在处理您的声音...", ru: "Обработка голоса..." },
+
+  // Image generator styles
+  style_realistic: { es: "Realista", en: "Realistic", hi: "यथार्थवादी", zh: "写实", ru: "Реалистичный" },
+  style_anime: { es: "Anime", en: "Anime", hi: "एनिमे", zh: "动漫", ru: "Аниме" },
+  style_cinematic: { es: "Cinemático", en: "Cinematic", hi: "सिनेमाई", zh: "电影感", ru: "Кинематографичный" },
+  style_3d: { es: "3D", en: "3D", hi: "3D", zh: "3D", ru: "3D" },
+  style_futuristic: { es: "Futurista", en: "Futuristic", hi: "भविष्यवादी", zh: "未来主义", ru: "Футуристический" },
+  style_oil_painting: { es: "Pintura óleo", en: "Oil painting", hi: "तेल चित्रकला", zh: "油画", ru: "Масляная живопись" },
+  image_placeholder: { es: "Ej: Un astronauta cabalgando un dragón sobre Marte", en: "Ex: An astronaut riding a dragon over Mars", hi: "उदा: मंगल पर एक ड्रैगन की सवारी करता हुआ अंतरिक्ष यात्री", zh: "例如：火星上骑龙的宇航员", ru: "Например: космонавт верхом на драконе над Марсом" },
+
+  // Chat errors
+  cam_permission: { es: "Necesitamos permiso para usar la cámara", en: "Camera permission needed", hi: "कैमरा अनुमति चाहिए", zh: "需要相机权限", ru: "Нужно разрешение на камеру" },
+  gallery_permission: { es: "Necesitamos permiso para tu galería", en: "Gallery permission needed", hi: "गैलरी अनुमति चाहिए", zh: "需要相册权限", ru: "Нужно разрешение на галерею" },
+  pdf_too_small: { es: "PDF vacío o demasiado pequeño", en: "PDF empty or too small", hi: "PDF खाली या बहुत छोटा", zh: "PDF为空或太小", ru: "PDF пустой или слишком маленький" },
+  something_went_wrong: { es: "Algo salió mal", en: "Something went wrong", hi: "कुछ गलत हुआ", zh: "出错了", ru: "Что-то пошло не так" },
+
+  // Game
+  game_wrong: { es: "❌ No es esa. ¡Sigue intentando!", en: "❌ Not quite. Keep trying!", hi: "❌ यह नहीं। प्रयास जारी रखें!", zh: "❌ 不对。继续努力！", ru: "❌ Не то. Попробуйте ещё!" },
+  game_correct: { es: "✅ ¡Correcto!", en: "✅ Correct!", hi: "✅ सही!", zh: "✅ 正确！", ru: "✅ Правильно!" },
+
+  // Profile
+  cancelled_sub_done: { es: "Suscripción cancelada", en: "Subscription cancelled", hi: "सदस्यता रद्द", zh: "订阅已取消", ru: "Подписка отменена" },
+  cancellation_complete: { es: "Cancelación completada", en: "Cancellation complete", hi: "रद्दीकरण पूर्ण", zh: "取消完成", ru: "Отмена завершена" },
+
+  // Support
+  support_manager: { es: "Soporte Manager", en: "Support Manager", hi: "सहायता प्रबंधक", zh: "支持管理", ru: "Менеджер поддержки" },
+  support_technical: { es: "Soporte Técnico", en: "Technical Support", hi: "तकनीकी सहायता", zh: "技术支持", ru: "Техподдержка" },
+  no_tickets_yet: { es: "No hay tickets aún", en: "No tickets yet", hi: "अभी कोई टिकट नहीं", zh: "暂无工单", ru: "Тикетов пока нет" },
+  need_help_question: { es: "¿Necesitas ayuda?", en: "Need help?", hi: "मदद चाहिए?", zh: "需要帮助？", ru: "Нужна помощь?" },
+  tickets_users_note: { es: "Aquí verás cuando los usuarios reporten problemas.", en: "You'll see user-reported issues here.", hi: "यहाँ आपको उपयोगकर्ता की रिपोर्ट दिखाई देगी।", zh: "用户报告的问题将显示在此处。", ru: "Здесь вы увидите проблемы от пользователей." },
 };
 
 export type TKey = keyof typeof T;

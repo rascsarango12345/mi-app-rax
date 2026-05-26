@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Colors, Radius, Spacing } from "@/src/theme";
 import { apiPost, apiGet } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { useT } from "@/src/i18n";
 import {
   isRevenueCatAvailable,
   getCurrentOffering,
@@ -17,35 +18,28 @@ import {
   PACKAGE_PRO,
 } from "@/src/revenuecat";
 
-const PLANS = [
-  {
-    id: "free",
-    name: "Gratis",
-    price: "$0",
-    color: Colors.textMuted,
-    perks: ["30 mensajes/día", "5 imágenes/día", "Voces básicas", "Acceso al chat"],
-  },
-  {
-    id: "premium",
-    name: "Premium",
-    price: "$5.99/mes",
-    color: Colors.electricBlue,
-    perks: ["1,000 mensajes/día", "200 imágenes/día", "4 voces premium", "Sin anuncios", "Soporte prioritario"],
-    featured: true,
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "$9.99/mes",
-    color: Colors.neonGreen,
-    perks: ["Ilimitado todo", "API privada", "Análisis avanzado", "Acceso anticipado", "Soporte 24/7"],
-  },
-];
+// Plans built from i18n keys so labels change with the language.
+const PLAN_DEFS = [
+  { id: "free", priceBase: "$0", color: Colors.textMuted, nameKey: "plan_free_name", perkKeys: ["perk_30_msg", "perk_5_img", "perk_basic_voices", "perk_chat_access"] },
+  { id: "premium", priceBase: "$5.99", color: Colors.electricBlue, nameKey: "plan_premium_name", featured: true, perkKeys: ["perk_1000_msg", "perk_200_img", "perk_4_voices", "perk_no_ads", "perk_priority_support"] },
+  { id: "pro", priceBase: "$9.99", color: Colors.neonGreen, nameKey: "plan_pro_name", perkKeys: ["perk_unlimited_all", "perk_private_api", "perk_advanced_analysis", "perk_early_access", "perk_support_247"] },
+] as const;
 
 export default function PremiumScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ session_id?: string; status?: string }>();
   const { user, refresh } = useAuth();
+  const { t } = useT();
+  // Build localized PLANS each render so language changes apply immediately.
+  const PLANS = PLAN_DEFS.map((p) => {
+    const isFree = p.id === "free";
+    return {
+      ...p,
+      name: t(p.nameKey as any),
+      price: isFree ? p.priceBase : `${p.priceBase}${t("per_month_short")}`,
+      perks: p.perkKeys.map((k) => t(k as any)),
+    };
+  });
   const [loading, setLoading] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -86,30 +80,30 @@ export default function PremiumScreen() {
         try {
           const r = await apiGet(`/stripe/session-status?session_id=${params.session_id}`);
           if (r.paid) {
-            setStatusMsg(`✅ ¡Pago exitoso! Ahora eres ${r.plan?.toUpperCase()}.`);
+            setStatusMsg(`${t("payment_success")} ${r.plan?.toUpperCase()}.`);
             await refresh();
           } else {
-            setStatusMsg(`⏳ Pago en proceso: ${r.payment_status}`);
+            setStatusMsg(`${t("payment_pending")}: ${r.payment_status}`);
           }
         } catch (e: any) {
           setStatusMsg(`Error al verificar: ${e?.message}`);
         }
       })();
     } else if (params.status === "cancel") {
-      setStatusMsg("Pago cancelado. Puedes intentarlo de nuevo cuando quieras.");
+      setStatusMsg(t("payment_cancelled"));
     }
   }, [params.status, params.session_id, refresh]);
 
-  const showError = (m: string) => (Platform.OS === "web" ? window.alert(m) : Alert.alert("Aviso", m));
+  const showError = (m: string) => (Platform.OS === "web" ? window.alert(m) : Alert.alert(t("notice"), m));
 
   // === iOS purchase flow via RevenueCat (Apple In-App Purchase) ===
   const onChooseIAP = async (planId: "premium" | "pro") => {
-    if (!user) { showError("Inicia sesión para suscribirte"); return; }
-    if (user.is_guest) { showError("Crea una cuenta (no invitado) para suscribirte"); return; }
-    if (!offering) { showError("No pude cargar las opciones de suscripción. Intenta de nuevo."); return; }
+    if (!user) { showError(t("sub_login_required")); return; }
+    if (user.is_guest) { showError(t("sub_no_guest")); return; }
+    if (!offering) { showError(t("sub_load_failed")); return; }
     const targetId = planId === "premium" ? PACKAGE_PREMIUM : PACKAGE_PRO;
     const pkg = offering?.availablePackages?.find((p: any) => p.identifier === targetId);
-    if (!pkg) { showError(`Paquete no disponible: ${targetId}`); return; }
+    if (!pkg) { showError(`${t("error")}: ${targetId}`); return; }
     setLoading(planId);
     try {
       const { plan, customerInfo } = await purchasePackage(pkg);
@@ -120,12 +114,12 @@ export default function PremiumScreen() {
         entitlements: Object.keys(customerInfo?.entitlements?.active || {}),
       }).catch(() => {});
       await refresh();
-      setStatusMsg(`✅ ¡Suscripción activa! Ahora eres ${plan.toUpperCase()}.`);
+      setStatusMsg(`${t("sub_active_now")} ${plan.toUpperCase()}.`);
     } catch (e: any) {
       if (e?.userCancelled) {
         // User pressed Cancel in the Apple sheet — don't show an error.
       } else {
-        showError(e?.message || "No se pudo completar la compra. Intenta otra vez.");
+        showError(e?.message || t("error"));
       }
     } finally {
       setLoading(null);
@@ -134,7 +128,7 @@ export default function PremiumScreen() {
 
   // === Restore purchases (iOS) ===
   const onRestore = async () => {
-    if (!user) { showError("Inicia sesión primero"); return; }
+    if (!user) { showError(t("please_login")); return; }
     setLoading("restore");
     try {
       const { plan, customerInfo } = await restorePurchases();
@@ -144,10 +138,10 @@ export default function PremiumScreen() {
         entitlements: Object.keys(customerInfo?.entitlements?.active || {}),
       }).catch(() => {});
       await refresh();
-      if (plan === "free") setStatusMsg("No encontramos suscripciones activas en tu Apple ID.");
-      else setStatusMsg(`✅ Suscripción restaurada: ${plan.toUpperCase()}.`);
+      if (plan === "free") setStatusMsg(t("no_sub_found"));
+      else setStatusMsg(`${t("sub_restored")}: ${plan.toUpperCase()}.`);
     } catch (e: any) {
-      showError(e?.message || "No pude restaurar las compras.");
+      showError(e?.message || t("error"));
     } finally {
       setLoading(null);
     }
@@ -155,8 +149,8 @@ export default function PremiumScreen() {
 
   // === Stripe flow for Web / Android ===
   const onChooseStripe = async (planId: "premium" | "pro") => {
-    if (!user) { showError("Inicia sesión para suscribirte"); return; }
-    if (user.is_guest) { showError("Crea una cuenta (no invitado) para suscribirte"); return; }
+    if (!user) { showError(t("sub_login_required")); return; }
+    if (user.is_guest) { showError(t("sub_no_guest")); return; }
     setLoading(planId);
     try {
       const origin = Platform.OS === "web" ? window.location.origin : (process.env.EXPO_PUBLIC_BACKEND_URL || "");
@@ -189,7 +183,7 @@ export default function PremiumScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={26} color={Colors.electricBlue} />
         </TouchableOpacity>
-        <Text style={styles.title}>Mejora tu plan</Text>
+        <Text style={styles.title}>{t("upgrade_subtitle")}</Text>
         <View style={{ width: 26 }} />
       </View>
 
@@ -199,13 +193,11 @@ export default function PremiumScreen() {
             <Text style={styles.statusText}>{statusMsg}</Text>
           </View>
         )}
-        <Text style={styles.intro}>
-          Desbloquea todo el poder de RAX AI. Cancela cuando quieras.
-        </Text>
+        <Text style={styles.intro}>{t("upgrade_intro")}</Text>
         {useIAP && loadingOffering && (
           <View style={{ alignItems: "center", padding: 8 }}>
             <ActivityIndicator color={Colors.electricBlue} />
-            <Text style={{ color: Colors.textMuted, marginTop: 6, fontSize: 12 }}>Cargando opciones…</Text>
+            <Text style={{ color: Colors.textMuted, marginTop: 6, fontSize: 12 }}>{t("loading_options")}</Text>
           </View>
         )}
         {plansForUI.map((p) => (
@@ -220,7 +212,7 @@ export default function PremiumScreen() {
           >
             {p.featured && (
               <View style={[styles.badge, { backgroundColor: p.color }]}>
-                <Text style={styles.badgeText}>MÁS POPULAR</Text>
+                <Text style={styles.badgeText}>{t("popular_badge")}</Text>
               </View>
             )}
             <Text style={[styles.planName, { color: p.color }]}>{p.name}</Text>
@@ -244,7 +236,7 @@ export default function PremiumScreen() {
                   <ActivityIndicator color="#000" />
                 ) : (
                   <Text style={styles.ctaText}>
-                    {user?.plan === p.id ? `✓ Ya tienes ${p.name}` : `Suscribirse a ${p.name}`}
+                    {user?.plan === p.id ? `✓ ${t("already_have")} ${p.name}` : `${t("subscribe_to")} ${p.name}`}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -262,15 +254,14 @@ export default function PremiumScreen() {
             {loading === "restore" ? (
               <ActivityIndicator color={Colors.electricBlue} />
             ) : (
-              <Text style={styles.restoreText}>🔄 Restaurar compras</Text>
+              <Text style={styles.restoreText}>🔄 {t("restore_purchases")}</Text>
             )}
           </TouchableOpacity>
         )}
 
         <Text style={styles.payments}>
           {useIAP
-            ? "🔒 Renovación automática · Gestiona en Ajustes > tu Apple ID > Suscripciones · Cancela cuando quieras"
-            : "🔒 Cancela cuando quieras"}
+            ? t("auto_renew_note") : t("cancel_anytime")}
         </Text>
       </ScrollView>
     </SafeAreaView>

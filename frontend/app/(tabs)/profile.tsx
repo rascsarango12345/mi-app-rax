@@ -25,9 +25,9 @@ export default function Profile() {
         const r = await apiPost("/stripe/cancel-subscription", {});
         const note = r.refund?.refunded
           ? `Reembolso emitido: $${r.refund.amount_usd}. ${r.message}`
-          : r.message || "Suscripción cancelada.";
+          : r.message || t("cancelled_sub_done");
         if (Platform.OS === "web") window.alert(note);
-        else Alert.alert("Cancelación completada", note);
+        else Alert.alert(t("cancellation_complete"), note);
         await refresh();
       } catch (e: any) {
         const err = e?.message || "Error al cancelar";
