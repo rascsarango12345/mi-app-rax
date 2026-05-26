@@ -501,6 +501,74 @@ backend:
             Implementation at server.py lines 2325-2350 works correctly with security check
             that prevents users from changing other users' plans.
 
+  - task: "App Store Readiness - Full regression (i18n legal pages, RevenueCat, Stripe, voice, image, chat memory)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: |
+            ✅ FULL REGRESSION — 24/24 PASS via /app/regression_test.py against public REACT_APP_BACKEND_URL.
+
+            A) Health & multilingual legal pages
+              ✅ A1 GET /api/health → 200 {"status":"healthy","db":"ok","version":"1.0.0"}
+              ✅ A2 GET /api/legal/privacy?lang=<lang> for [en, es, hi, zh, ru] — all 200, each body
+                  contains the localized title ("Privacy Policy" / "Política de Privacidad" /
+                  "गोपनीयता नीति" / "隐私政策" / "Политика конфиденциальности") AND a
+                  `<select class="lang">` language picker.
+              ✅ A2 GET /api/legal/terms?lang=<lang> for [en, es, hi, zh, ru] — all 200, each body
+                  contains the localized keyword ("Terms" / "Términos" / "सेवा" / "服务" / "Условия")
+                  AND `<select class="lang">` picker.
+              ✅ A3 GET /api/legal/privacy (no lang) → 200, defaults to English ("Privacy Policy").
+              ✅ A4 GET /api/legal/privacy?lang=invalidlang → 200, falls back to English (no 500).
+              ✅ A5 GET /api/legal → 200 JSON with supported_languages = ["en","es","hi","zh","ru"]
+                  and links for privacy_policy / terms_of_service / eula.
+
+            B) Chat + memory (locale switch mid-conversation)
+              ✅ B6 Fresh user, POST /api/chat/send {"text":"Mi nombre es Lucía y vivo en Madrid"}
+                   → 200, conversation_id=conv_97808edcd46a44, reply 1080 chars.
+              ✅ B7 Same conv, POST /api/chat/send {"text":"¿Cómo me llamo y dónde vivo?"}
+                   → 200, AI answer mentions BOTH "Lucía" and "Madrid" verbatim.
+              ✅ B8 Same conv with "locale":"en", POST /api/chat/send {"text":"What's my name?"}
+                   → 200, AI replies in English ("Your name is Lucía! ... you live in Madrid, Spain"),
+                   confirming both memory AND mid-conversation locale switching work.
+
+            C) RevenueCat endpoints
+              ✅ C9  POST /api/revenuecat/webhook + valid Bearer + TEST event
+                     → 200 {"status":"ok","note":"Test webhook received successfully"}
+              ✅ C10 POST /api/revenuecat/webhook with no auth
+                     → 401 {"detail":"Invalid Authorization header"}
+              ✅ C11 POST /api/revenuecat/sync without JWT
+                     → 401 {"detail":"Missing token"}
+              ✅ C12 POST /api/revenuecat/sync with valid JWT but mismatched app_user_id
+                     → 403 {"detail":"app_user_id does not match the authenticated user"}
+
+            D) Stripe (Web/Android path)
+              ✅ D13 POST /api/stripe/create-checkout-session {"plan":"premium",
+                     "origin_url":"https://example.com"} with admin JWT
+                     → 200, valid checkout_url (https://checkout.stripe.com/c/pay/cs_live_...).
+
+            E) Voice converse text-only path
+              ✅ E14 POST /api/voice/converse {"text_input":"Hola","voice":"jennifer"} with JWT
+                     → 200, ai_text (108 chars) + TTS audio_base64 (~180KB).
+                     Note: voice schema accepts only ["thalia","jennifer","alexander","steven"]
+                     (Literal type). Using any other value yields 422 by design.
+
+            F) Image generation sanity
+              ✅ F15 POST /api/images/generate {"prompt":"A red apple on a white plate",
+                     "style":"realista"} with JWT → 200.
+                     Response keys: ["image_id","mime_type","data_base64","prompt","style"].
+                     data_base64 length ~1.9MB (valid PNG/JPEG).
+                     Note: payload field is `data_base64`, not `image_base64` — frontend must
+                     read `data_base64` (already consistent with /api/images/generate response).
+
+            No tracebacks in /var/log/supervisor/backend.err.log during the run. Backend is
+            App Store ready from a backend-API perspective.
+
   - task: "Regression - GET /api/health, /api/legal/{privacy,terms}, /api/conversations, /api/chat/send + memory"
     implemented: true
     working: true
@@ -688,3 +756,41 @@ agent_communication:
         No 502s observed. No tracebacks in /var/log/supervisor/backend.err.log during the run.
         Mime normalization + retry loop + asyncio.to_thread() + <200-byte validation all working
         as designed. Task closed.
+
+    - agent: "testing"
+      message: |
+        ✅ APP STORE READINESS FULL REGRESSION — 24/24 PASS (/app/regression_test.py).
+        Backend: public REACT_APP_BACKEND_URL. All sections from the review request verified:
+
+        A) Health + i18n legal pages (en, es, hi, zh, ru):
+           ✅ /api/health → 200, db=ok
+           ✅ /api/legal/privacy?lang=<lang>  — 5/5, localized title + <select class="lang"> picker
+           ✅ /api/legal/terms?lang=<lang>    — 5/5, localized keyword + picker
+           ✅ /api/legal/privacy (no lang)    — defaults to English
+           ✅ /api/legal/privacy?lang=invalidlang — defaults to English (no 500)
+           ✅ /api/legal — JSON listing supported_languages=["en","es","hi","zh","ru"]
+
+        B) Chat + memory (Spanish then mid-conversation switch to English):
+           ✅ B6 introduce Lucía/Madrid → 200, conv_id captured
+           ✅ B7 recall in same conv → AI mentions both "Lucía" AND "Madrid"
+           ✅ B8 same conv + locale=en → English reply that still remembers "Lucía"/"Madrid"
+
+        C) RevenueCat:
+           ✅ C9  webhook + Bearer + TEST → 200 (test ack)
+           ✅ C10 webhook no auth → 401 "Invalid Authorization header"
+           ✅ C11 /sync no JWT → 401 "Missing token"
+           ✅ C12 /sync mismatched app_user_id → 403 "app_user_id does not match the authenticated user"
+
+        D) Stripe:
+           ✅ D13 /stripe/create-checkout-session (premium) → 200, valid checkout_url
+
+        E) Voice converse:
+           ✅ E14 text_input="Hola", voice="jennifer" → 200, ai_text + TTS audio (180KB).
+                 (Schema rejects voices outside ["thalia","jennifer","alexander","steven"] with 422 — by design.)
+
+        F) Image generation:
+           ✅ F15 /images/generate (apple, realista) → 200, data_base64 ~1.9MB.
+                 NOTE: Response key is `data_base64` (not `image_base64`). Frontend
+                 already reads `data_base64`, so no change required.
+
+        No tracebacks in backend.err.log during the run. Backend is App Store ready.

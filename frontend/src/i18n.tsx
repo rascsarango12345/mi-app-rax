@@ -229,6 +229,13 @@ const T = {
   voice_speaking: { es: "habla...", en: "is speaking...", hi: "बोल रहा है...", zh: "正在说话...", ru: "говорит..." },
   voice_processing: { es: "Procesando tu voz...", en: "Processing your voice...", hi: "आपकी आवाज़ संसाधित हो रही है...", zh: "正在处理您的声音...", ru: "Обработка голоса..." },
 
+  // Image generator
+  image_generator_title: { es: "Generador de Imágenes", en: "Image Generator", hi: "चित्र जनरेटर", zh: "图像生成器", ru: "Генератор изображений" },
+  image_generator_sub: { es: "Crea arte único con IA", en: "Create unique AI art", hi: "AI के साथ अद्वितीय कला बनाएँ", zh: "用 AI 创作独特艺术", ru: "Создавайте уникальное AI-искусство" },
+  style_label: { es: "Estilo", en: "Style", hi: "शैली", zh: "风格", ru: "Стиль" },
+  description_label: { es: "Descripción", en: "Description", hi: "विवरण", zh: "描述", ru: "Описание" },
+  generate_btn: { es: "Generar imagen", en: "Generate image", hi: "चित्र बनाएँ", zh: "生成图像", ru: "Сгенерировать" },
+
   // Image generator styles
   style_realistic: { es: "Realista", en: "Realistic", hi: "यथार्थवादी", zh: "写实", ru: "Реалистичный" },
   style_anime: { es: "Anime", en: "Anime", hi: "एनिमे", zh: "动漫", ru: "Аниме" },

@@ -49,12 +49,12 @@ export default function ImageScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Generador de Imágenes</Text>
-        <Text style={styles.sub}>Crea arte único con IA</Text>
+        <Text style={styles.title}>{t("image_generator_title")}</Text>
+        <Text style={styles.sub}>{t("image_generator_sub")}</Text>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
-        <Text style={t(styles.labelKey as any)}>Estilo</Text>
+        <Text style={styles.label}>{t("style_label")}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
           {STYLES.map((s) => (
             <TouchableOpacity
@@ -71,7 +71,7 @@ export default function ImageScreen() {
           ))}
         </ScrollView>
 
-        <Text style={[styles.label, { marginTop: Spacing.md }]}>Descripción</Text>
+        <Text style={[styles.label, { marginTop: Spacing.md }]}>{t("description_label")}</Text>
         <TextInput
           testID="image-prompt"
           style={styles.input}
@@ -85,7 +85,7 @@ export default function ImageScreen() {
         <TouchableOpacity testID="btn-generate" style={styles.cta} onPress={generate} disabled={loading}>
           {loading ? <ActivityIndicator color="#000" /> : <>
             <Ionicons name="flash" size={18} color="#000" />
-            <Text style={styles.ctaText}>Generar imagen</Text>
+            <Text style={styles.ctaText}>{t("generate_btn")}</Text>
           </>}
         </TouchableOpacity>
 

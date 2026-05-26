@@ -65,8 +65,14 @@ export async function initRevenueCat(userId: string | null): Promise<void> {
         await Purchases.logIn(userId);
       } catch {}
     }
-  } catch (e) {
-    console.warn("[RevenueCat] configure failed", e);
+  } catch (e: any) {
+    // Expected in Expo Go (no native module). Only log once, quietly.
+    const msg = (e?.message || String(e)).toLowerCase();
+    if (msg.includes("expo go") || msg.includes("native store is not available") || msg.includes("invalid api key")) {
+      // No-op: RevenueCat only works in dev builds / TestFlight / production.
+    } else {
+      console.warn("[RevenueCat] configure failed", e);
+    }
   }
 }
 
