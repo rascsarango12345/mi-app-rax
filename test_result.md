@@ -601,7 +601,8 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Support screen (/support) — t is not defined crash"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -794,3 +795,116 @@ agent_communication:
                  already reads `data_base64`, so no change required.
 
         No tracebacks in backend.err.log during the run. Backend is App Store ready.
+
+    - agent: "testing"
+      message: |
+        ✅ PRE-APP-STORE REGRESSION (frontend, mobile viewport 390x844) — almost fully PASS.
+        Original "Cannot set indexed properties" crash from setValueForStyle is FULLY RESOLVED.
+        No instance of that error appeared on any of the 12 screens visited.
+
+        CASE 1 — App boot ✅
+          • /login renders, NO red overlay, NO indexed-properties error in console.
+          • "Continue as Guest" navigates to /chat successfully, no crash.
+
+        CASE 2 — Navigate all main screens (3s wait each):
+          ✅ /                          — home/conversations list renders clean
+          ✅ /(tabs)/studio             — clean
+          ✅ /(tabs)/voice              — clean
+          ✅ /(tabs)/image              — clean (the original crashing screen NOW WORKS)
+          ✅ /(tabs)/game               — clean
+          ✅ /(tabs)/profile            — clean
+          ✅ /premium                   — clean
+          ✅ /settings                  — clean
+          ❌ /support                   — CRASHES with ReferenceError: t is not defined
+                                          at SupportScreen (./support.tsx).
+                                          Triggers React error boundary (LogBoxStateSubscription).
+                                          Root cause: support.tsx uses t("support_manager"),
+                                          t("support_technical"), t("no_tickets_yet"),
+                                          t("need_help_question"), t("tickets_users_note"), etc.
+                                          (lines 191, 203, 207, …) but `t` is never destructured
+                                          from useLang(). Fix: add
+                                              const { t } = useLang();
+                                          (or const { t, lang } = useLang()) at the top of
+                                          SupportScreen — same pattern already used in other
+                                          screens. This is a NEW regression from the recent
+                                          batch of new i18n keys and MUST be fixed before
+                                          App Store submission.
+          ✅ /terms                     — Terms of Service webview loads (English/Spanish)
+          ✅ /terms?doc=privacy         — Privacy Policy webview loads
+
+        CASE 3 — i18n switching (CRITICAL) ✅
+          ✅ Settings has working language picker (data-testid="lang-en"/"lang-es"…).
+          ✅ Switch to English →
+                /premium shows "Upgrade your plan", "MOST POPULAR", "$5.99/mo",
+                "Subscribe to Premium", "1,000 messages/day" (verified by screenshot).
+                /(tabs)/image shows "STYLE"/"DESCRIPTION"/"Generate image" (English) —
+                no Spanish strings remain.
+                /terms shows English Terms of Service.
+                /terms?doc=privacy shows English Privacy Policy.
+          ✅ Switch back to Spanish →
+                /premium shows "Mejora tu plan", "MÁS POPULAR", "$5.99/mes",
+                "Suscribirse a Premium", "1,000 mensajes/día", "Sin anuncios",
+                "Soporte prioritario" (verified by screenshot).
+          Conclusion: i18n switching works fully across home, studio, voice, image,
+          premium, settings, terms, privacy. No mixed-language UI.
+
+        CASE 4 — Chat flow (memory): NOT EXECUTED in this UI regression run.
+          Already verified by backend regression (24/24 PASS, see B6/B7/B8 above —
+          Spanish intro "Mi nombre es Lucía y vivo en Madrid" then "¿Cómo me llamo
+          y dónde vivo?" returns AI reply containing both "Lucía" and "Madrid").
+          The frontend chat composer is present on /, but to stay within the
+          browser-automation call budget I did not type-and-send. Recommended:
+          main agent does a manual smoke (1 message) after fixing /support.
+
+        CASE 5 — Image generator specifics ✅
+          ✅ Screen renders without red overlay.
+          ✅ "STYLE" section label (uppercase) is a regular Text node, not undefined.
+          ✅ Chip buttons render: Realistic / Anime / Futuristic / (more, horizontal scroll).
+          ✅ "DESCRIPTION" label + placeholder "Ex: An astronaut riding a dragon over Mars".
+          ✅ "Generate image" button visible at the bottom (and "Generar imagen" in ES).
+          Screenshot saved as 05_image_screen.png — visually clean, no error overlay,
+          confirming the setValueForStyle / Cannot-set-indexed-properties fix.
+
+        CASE 6 — Console error scan
+          Only one non-ignored Error fired across all 12 screen visits:
+            "ReferenceError: t is not defined at SupportScreen"
+          (Cause documented under CASE 2 above.)
+          All other console output was ignorable per spec:
+            - expo-av deprecation warnings
+            - shadow*/textShadow*/pointerEvents/boxShadow deprecation warnings
+            - Bundling/hot-reload logs
+          No RevenueCat warnings during this run (no purchase flow triggered).
+          NO "Cannot set indexed properties on this object" anywhere in console
+          or page-error stream. Original P0 crash is FIXED.
+
+        BLOCKER FOR APP STORE: /support ReferenceError: t is not defined.
+        Everything else is green and ready to ship.
+
+frontend:
+  - task: "Support screen (/support) — t is not defined crash"
+    implemented: true
+    working: false
+    file: "/app/frontend/app/support.tsx"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: false
+          agent: "testing"
+          comment: |
+            CRITICAL: /support page crashes on mobile web with
+            "ReferenceError: t is not defined at SupportScreen (./support.tsx)".
+            React error boundary kicks in and shows a fallback / dev overlay.
+            Root cause: the component uses t("support_manager"),
+            t("support_technical"), t("no_tickets_yet"), t("need_help_question"),
+            t("tickets_users_note"), etc. (lines 191, 203, 207, and others)
+            but never destructures `t` from useLang(). Other screens (premium,
+            settings, image, voice, …) correctly do `const { t } = useLang();`
+            at the top of the function — support.tsx is missing this line.
+            Fix is a single line: add
+                const { t } = useLang();
+            at the top of SupportScreen (and import useLang from "@/src/i18n" if
+            not already imported). After fix, retest /support on both ES and EN
+            to confirm no crash and that ticket-list UI labels are translated.
+            BLOCKS APP STORE SUBMISSION.
+
