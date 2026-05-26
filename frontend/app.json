@@ -42,7 +42,11 @@
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "15.1",
+            "ccacheEnabled": true,
+            "extraPodfileProps": {
+              "swift_version": "5.0"
+            }
           },
           "android": {
             "minSdkVersion": 24,
@@ -55,7 +59,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sarangocabrera.raxai",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "RAX AI uses your microphone to transcribe your voice into text.",
         "NSPhotoLibraryUsageDescription": "Select images for RAX AI to analyze.",
