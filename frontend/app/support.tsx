@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Keyboard,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -55,6 +57,23 @@ export default function SupportScreen() {
   const [msgs, setMsgs] = useState<TicketMsg[]>([]);
   const [replyText, setReplyText] = useState("");
   const [replying, setReplying] = useState(false);
+
+  // Bulletproof keyboard tracking for Modal (iOS Modal doesn't auto-adjust)
+  const kbHeight = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvt, (e) => {
+      const h = e?.endCoordinates?.height ?? 0;
+      const dur = (e as any)?.duration ?? 250;
+      Animated.timing(kbHeight, { toValue: h, duration: dur, useNativeDriver: false }).start();
+    });
+    const hideSub = Keyboard.addListener(hideEvt, (e) => {
+      const dur = (e as any)?.duration ?? 200;
+      Animated.timing(kbHeight, { toValue: 0, duration: dur, useNativeDriver: false }).start();
+    });
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, [kbHeight]);
 
   const load = useCallback(async () => {
     try {
@@ -246,25 +265,22 @@ export default function SupportScreen() {
         />
       )}
 
-      <Modal visible={showNew} transparent animationType="slide" onRequestClose={() => setShowNew(false)}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.modalBg}
-        >
+      <Modal visible={showNew} transparent animationType="slide" onRequestClose={() => setShowNew(false)} statusBarTranslucent>
+        <View style={styles.modalBg}>
           <TouchableOpacity
             style={{ flex: 1 }}
             activeOpacity={1}
-            onPress={() => setShowNew(false)}
+            onPress={() => { Keyboard.dismiss(); setShowNew(false); }}
           />
-          <View style={styles.modalCard}>
+          <Animated.View style={[styles.modalCard, { paddingBottom: kbHeight }]}>
             <View style={styles.modalHeaderRow}>
               <Text style={styles.modalTitle}>Nuevo ticket</Text>
               <TouchableOpacity
                 testID="ticket-close"
-                onPress={() => setShowNew(false)}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                onPress={() => { Keyboard.dismiss(); setShowNew(false); }}
+                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               >
-                <Ionicons name="close" size={26} color={Colors.textPrimary} />
+                <Ionicons name="close" size={28} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
             <TextInput
@@ -285,16 +301,16 @@ export default function SupportScreen() {
               onChangeText={setMessage}
               multiline
             />
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <TouchableOpacity style={[styles.cta, { flex: 1, backgroundColor: Colors.surfaceElevated }]} onPress={() => setShowNew(false)}>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+              <TouchableOpacity style={[styles.cta, { flex: 1, backgroundColor: Colors.surfaceElevated }]} onPress={() => { Keyboard.dismiss(); setShowNew(false); }}>
                 <Text style={[styles.ctaText, { color: Colors.textPrimary }]}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity testID="ticket-create" style={[styles.cta, { flex: 1 }]} onPress={createTicket} disabled={creating}>
                 {creating ? <ActivityIndicator color="#000" /> : <Text style={styles.ctaText}>Enviar</Text>}
               </TouchableOpacity>
             </View>
-          </View>
-        </KeyboardAvoidingView>
+          </Animated.View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
