@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -50,7 +51,17 @@ export default function CreatorScreen() {
         <Text style={styles.title}>Creador de Contenido</Text>
         <Text style={styles.sub}>Genera contenido viral en segundos</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
+      <ScrollView
+        contentContainerStyle={{ padding: Spacing.md, paddingBottom: 140 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.label}>Tipo</Text>
         <View style={styles.grid}>
           {TYPES.map((t) => (
@@ -91,6 +102,7 @@ export default function CreatorScreen() {
           </View>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -135,7 +135,11 @@ export default function SupportScreen() {
           <Text style={styles.title}>Conversación</Text>
           <View style={{ width: 26 }} />
         </View>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        >
           <FlatList
             data={msgs}
             keyExtractor={(m) => m.ticket_message_id}
@@ -243,9 +247,26 @@ export default function SupportScreen() {
       )}
 
       <Modal visible={showNew} transparent animationType="slide" onRequestClose={() => setShowNew(false)}>
-        <View style={styles.modalBg}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalBg}
+        >
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            activeOpacity={1}
+            onPress={() => setShowNew(false)}
+          />
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Nuevo ticket</Text>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Nuevo ticket</Text>
+              <TouchableOpacity
+                testID="ticket-close"
+                onPress={() => setShowNew(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={26} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
             <TextInput
               testID="ticket-subject"
               style={styles.input}
@@ -253,6 +274,7 @@ export default function SupportScreen() {
               placeholderTextColor={Colors.textMuted}
               value={subject}
               onChangeText={setSubject}
+              returnKeyType="next"
             />
             <TextInput
               testID="ticket-message"
@@ -272,7 +294,7 @@ export default function SupportScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -322,7 +344,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface, padding: Spacing.lg,
     borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg, gap: 8,
   },
-  modalTitle: { color: Colors.textPrimary, fontSize: 18, fontWeight: "800", marginBottom: 6 },
+  modalHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+  modalTitle: { color: Colors.textPrimary, fontSize: 18, fontWeight: "800" },
   cta: { backgroundColor: Colors.electricBlue, paddingVertical: 14, borderRadius: Radius.pill, alignItems: "center" },
   ctaText: { color: "#000", fontWeight: "800" },
 });

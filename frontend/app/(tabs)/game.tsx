@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Platform, KeyboardAvoidingView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Radius, Spacing } from "@/src/theme";
@@ -64,7 +64,17 @@ export default function GameScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: Spacing.md, gap: Spacing.md }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
+      <ScrollView
+        contentContainerStyle={{ padding: Spacing.md, gap: Spacing.md, paddingBottom: 140 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={false}
+      >
         {game ? (
           <>
             <View style={styles.scrambleCard}>
@@ -119,6 +129,7 @@ export default function GameScreen() {
           <ActivityIndicator color={Colors.electricBlue} />
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -9,6 +9,7 @@ import {
   Image,
   ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -53,7 +54,17 @@ export default function ImageScreen() {
         <Text style={styles.sub}>{t("image_generator_sub")}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: Spacing.md }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
+      <ScrollView
+        contentContainerStyle={{ padding: Spacing.md, paddingBottom: 140 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.label}>{t("style_label")}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
           {STYLES.map((s) => (
@@ -106,6 +117,7 @@ export default function ImageScreen() {
           </View>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
