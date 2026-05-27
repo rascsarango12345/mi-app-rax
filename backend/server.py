@@ -828,6 +828,29 @@ async def preview_video_download():
     )
 
 
+@api.get("/promo-video", include_in_schema=False)
+async def promo_video_download():
+    """Serve the 90-second promo companion video (1080x1920 vertical)."""
+    path = ROOT_DIR / "static" / "rax_promo.mp4"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Promo video not found")
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        filename="rax_promo.mp4",
+    )
+
+
+@api.get("/promo-preview/{name}", include_in_schema=False)
+async def promo_preview_image(name: str):
+    """Serve still preview frames of the promo video (intro/chat/coming)."""
+    safe = name.replace("..", "").replace("/", "")
+    path = ROOT_DIR / "static" / f"preview_{safe}.png"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Frame not found")
+    return FileResponse(path, media_type="image/png")
+
+
 _PRIVACY_HTML = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
