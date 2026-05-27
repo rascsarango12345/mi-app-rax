@@ -16,7 +16,7 @@ import jwt
 import httpx
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel, Field, EmailStr
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -813,6 +813,19 @@ async def legal_index():
         "eula": "/api/legal/terms?lang=en|es|hi|zh|ru",
         "supported_languages": ["en", "es", "hi", "zh", "ru"],
     }
+
+
+@api.get("/preview-video", include_in_schema=False)
+async def preview_video_download():
+    """Serve the App Store preview video (H.264, 1290x2796, ~21s)."""
+    path = ROOT_DIR / "static" / "rax_ai_preview.mp4"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Preview video not found")
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        filename="rax_ai_preview.mp4",
+    )
 
 
 _PRIVACY_HTML = f"""<!DOCTYPE html>
